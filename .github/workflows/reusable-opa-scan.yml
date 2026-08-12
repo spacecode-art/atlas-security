@@ -1,0 +1,51 @@
+name: Reusable - OPA/Conftest Policy Scan
+
+on:
+  workflow_call:
+    inputs:
+      plan-artifact-name:
+        description: "Name of the build artifact containing the Terraform plan JSON (produced by `terraform show -json`)"
+        type: string
+        required: true
+      plan-json-filename:
+        description: "Filename of the plan JSON inside that artifact"
+        type: string
+        default: "plan.json"
+      conftest-version:
+        description: "Pinned Conftest version — single source of truth, do not override per-consumer"
+        type: string
+        default: "0.69.0"
+
+jobs:
+  opa-policy-scan:
+    name: OPA Policy Scan (Conftest)
+    runs-on: ubuntu-latest
+    steps:
+      # Checked out explicitly (not implicit) because this job needs
+      # atlas-security's own policies/ directory, not the calling repo's
+      # working tree — workflow_call does not check that out for you.
+      - name: Checkout atlas-security policies
+        uses: actions/checkout@v4
+        with:
+          repository: spacecode-art/atlas-security
+          ref: main
+          path: atlas-security
+
+      - name: Download Terraform plan artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.plan-artifact-name }}
+
+      - name: Install Conftest
+        run: |
+          curl -sL -o conftest.tar.gz \
+            "https://github.com/open-policy-agent/conftest/releases/download/v${{ inputs.conftest-version }}/conftest_${{ inputs.conftest-version }}_Linux_x86_64.tar.gz"
+          tar xzf conftest.tar.gz
+          sudo mv conftest /usr/local/bin/
+          conftest --version
+
+      - name: Run Conftest against Terraform plan
+        run: |
+          conftest test "${{ inputs.plan-json-filename }}" \
+            --policy atlas-security/policies/opa/ \
+            --all-namespaces
