@@ -15,10 +15,10 @@ repos call by reference, version-pinned, instead of reimplementing.
 ## Overview
 
 This repo does not scan itself in isolation — its value is proven by
-being *consumed*. `atlas-foundation`'s CI is retrofitted in this
-phase to call `atlas-security`'s reusable workflows instead of running
-Checkov inline, closing the loop from "security tooling exists" to
-"security tooling is actually load-bearing infrastructure."
+being *consumed*. `atlas-foundation`'s CI calls three of this repo's
+reusable workflows on every push (secrets scan, IaC scan, OPA policy
+scan), closing the loop from "security tooling exists" to "security
+tooling is actually load-bearing infrastructure."
 
 ## Objectives
 
@@ -36,8 +36,34 @@ Checkov inline, closing the loop from "security tooling exists" to
 
 ## Architecture Diagram
 
-_(added once the first reusable workflow exists — no diagram before
-there's something real to diagram)_
+```mermaid
+graph TB
+    subgraph "atlas-security (this repo)"
+        GITLEAKS[reusable-secrets-scan.yml<br/>Gitleaks]
+        IAC[reusable-iac-scan.yml<br/>Checkov + tfsec]
+        OPA[reusable-opa-scan.yml<br/>Conftest]
+        POLICIES[policies/opa/*.rego]
+        OPA --> POLICIES
+    end
+
+    subgraph "atlas-foundation (consumer)"
+        SECRETS_JOB[Secrets Scan job]
+        PLAN_JOB[Terraform Plan job]
+        SEC_JOB[Security Scan job]
+        POLICY_JOB[Policy Scan job]
+
+        SECRETS_JOB -.calls.-> GITLEAKS
+        SEC_JOB -.calls.-> IAC
+        PLAN_JOB -->|"plan.json artifact"| POLICY_JOB
+        POLICY_JOB -.calls.-> OPA
+    end
+
+    subgraph "Consumers not yet wired (planned)"
+        TAWIRA[Tawira SaaS app<br/>private repo]
+        SBOM[reusable-sbom-scan-sign.yml<br/>Syft + Grype + Cosign — not built yet]
+        TAWIRA -.will call.-> SBOM
+    end
+```
 
 ## Repository Structure
 
@@ -47,36 +73,187 @@ atlas-security/
 │   └── workflows/
 │       ├── reusable-secrets-scan.yml
 │       ├── reusable-iac-scan.yml
-│       ├── reusable-sbom-scan-sign.yml
-│       └── reusable-sast.yml
+│       ├── reusable-opa-scan.yml
+│       ├── reusable-sbom-scan-sign.yml   # planned — see ADR-0001
+│       └── reusable-sast.yml              # planned
 ├── policies/
-│   └── opa/                  # Rego policies (Conftest)
+│   └── opa/
+│       ├── tagging.rego
+│       └── tagging_test.rego
 ├── docs/
 │   ├── adr/
-│   ├── threat-model.md
-│   └── incident-runbook.md
-├── sample-app/                # minimal container image, exists only
-│                               # so SBOM/scan/sign has something real
-│                               # to operate on
+│   │   └── ADR-0001-use-tawira-instead-of-sample-app.md
+│   ├── threat-model.md         # planned
+│   └── incident-runbook.md     # planned
+├── .editorconfig
+├── .gitignore
 ├── CHANGELOG.md
-├── CONTRIBUTING.md
 ├── LICENSE
-├── Makefile
 └── README.md
 ```
 
+`sample-app/` from the original plan is retired — see
+[ADR-0001](docs/adr/ADR-0001-use-tawira-instead-of-sample-app.md): the
+SBOM/Grype/Cosign pipeline will target Tawira, a real private SaaS
+application, once it has a Dockerfile.
+
+## Technology Choices
+
+| Choice | Why this, not the alternative |
+|---|---|
+| **Gitleaks** over TruffleHog for secrets scanning | Faster on large repos, actively maintained GitHub Action with a straightforward pass/fail signal for CI gating. |
+| **Checkov as the hard gate, tfsec as second opinion** | Broader AWS-specific check coverage and SARIF/Actions integration in Checkov; tfsec's independent rule engine catches anything Checkov's ruleset misses, without blocking merges on its own (see `atlas-foundation` ADR-0010). |
+| **OPA/Conftest** over Sentinel or custom scripts for policy-as-code | Free/open-source, Rego is purpose-built for structured policy evaluation over JSON (Terraform plan output), and unit-testable via `opa test` — a custom bash script checking tags would not be. |
+| **Reusable `workflow_call` workflows** over copy-pasted YAML per repo | Single source of truth: a skip-list or tool-version change made once here propagates to every consuming repo on their next run, rather than needing N repos updated in lockstep. |
+| **Tawira over a throwaway sample-app** for SBOM/Grype/Cosign (ADR-0001) | Real, evolving dependency tree produces real, evolving findings — a static sample app's findings would go stale immediately. |
+
+## Deployment Guide
+
+This repo has nothing to "deploy" on its own — its output is
+consumed by other repos' CI. A consuming repo wires in a workflow like:
+
+```yaml
+security-scan:
+  name: Security Scan
+  uses: spacecode-art/atlas-security/.github/workflows/reusable-iac-scan.yml@main
+  with:
+    directory: terraform/
+```
+
+Reusable workflows are pinned by ref (`@main` currently; a tagged
+release like `@v1` is a natural hardening step once this repo's own
+versioning stabilizes).
+
+To run the OPA policy against a Terraform plan locally, before pushing:
+
+```bash
+opa test policies/opa/ -v
+conftest test <plan.json> --policy policies/opa/ --all-namespaces
+```
+
+## CI/CD
+
+This repo's own CI is minimal by design — the workflows it *ships*
+are the product, not a build pipeline for itself. `opa test` running
+in every consuming repo's CI (transitively, via `reusable-opa-scan.yml`)
+is the real ongoing validation of the Rego policies' correctness.
+
 ## Current Status
 
-Repository initialized. No reusable workflows built yet — this
-README exists first, per the Atlas execution plan's standing rule.
+**Live and consumed by `atlas-foundation` today:**
+- `reusable-secrets-scan.yml` (Gitleaks) — passing
+- `reusable-iac-scan.yml` (Checkov hard gate + tfsec informational,
+  `soft_fail: true`, authenticated via `GITHUB_TOKEN`) — passing
+- `reusable-opa-scan.yml` (Conftest) running `policies/opa/tagging.rego`
+  — passing, and already caught one real finding: 11 resources across
+  all three `atlas-foundation` modules were missing `Owner`/`ManagedBy`
+  tags before this policy existed (see `atlas-foundation` ADR-0020)
+
+**Not yet built:**
+- SBOM + Grype + Cosign pipeline (blocked on Tawira's Dockerfile — ADR-0001)
+- Semgrep SAST
+- Threat model, incident runbook for this repo itself
+
+## Design Decisions (ADRs)
+
+| ADR | Decision |
+|---|---|
+| 0001 | Use Tawira (private SaaS repo) instead of a throwaway sample-app |
+
+## Threat Model
+
+Not yet built. Deferred until the SBOM/Grype/Cosign and Semgrep phases
+land — a threat model written before this repo's own attack surface
+(consuming repos' trust in pinned workflow refs, Rego policy supply
+chain) is fully shaped would need a rewrite anyway.
+
+## Security Review
+
+This repo doesn't run Checkov/tfsec against itself (no Terraform
+lives here). Its own security-relevant surface is the Rego policies
+and workflow YAML, validated by:
+- `opa test policies/opa/` — 6/6 unit tests passing
+- Every consuming repo's CI run, which is a live integration test of
+  these workflows against real Terraform plans
+
+## Testing Strategy
+
+Rego policies are unit-tested with OPA's built-in test framework
+(`opa test policies/opa/ -v`), covering: correct detection of missing
+tags, correct handling of resources with no tags at all, resources
+that already comply, non-taggable resource types being ignored, and
+resources being destroyed being ignored (a delete doesn't need an
+`Owner` tag on the way out). 6/6 passing as of the tagging policy's
+introduction.
+
+## Cost Model
+
+**$0 spent.** Every tool here (Gitleaks, Checkov, tfsec, OPA/Conftest,
+and the planned Syft/Grype/Cosign/Semgrep) is free and runs entirely
+inside GitHub Actions' free tier for public repos — no cloud spend of
+any kind is possible from this repo's own workflows.
+
+## Monitoring
+
+Not applicable in the traditional sense — this repo produces CI gates,
+not running infrastructure. The closest equivalent is each consuming
+repo's Actions history, which is the audit trail of every scan run.
+
+## Incident Runbook
+
+Not yet built. First candidate incident type once written: a reusable
+workflow reference (`@main`) breaking every consumer simultaneously if
+a change here isn't backward compatible — see the Postmortem below for
+a related, already-experienced failure mode.
+
+## Postmortem Example
+
+**Incident:** `reusable-iac-scan.yml`'s tfsec step was given a
+`soft_fail_commented: true` input intended to make tfsec's own exit
+code succeed on findings. The action silently ignored the unrecognized
+input (no error, no warning) and continued exiting non-zero, so the
+job kept failing even after the "fix" was pushed and merged.
+
+**Detection:** Re-running `atlas-foundation`'s CI after the change
+still showed `tfsec (second opinion, non-blocking)` red. The job was
+never actually blocking the overall run (`continue-on-error: true`
+was masking it correctly), but the red X was misleading and the root
+cause was still unresolved.
+
+**Resolution:** Checked tfsec-action's actual documented inputs rather
+than assuming the name — the real input is `soft_fail`, not
+`soft_fail_commented`. Corrected the input name; the job went green on
+the next run.
+
+**Follow-up finding:** Once tfsec's exit-code masking was fixed
+correctly, a separate issue surfaced when wiring up OPA: `conftest
+test` silently evaluates only the `main` Rego namespace by default. A
+policy written as `package terraform.tagging` produced `0 tests, 0
+passed` — not an error, just silent non-evaluation — until
+`--all-namespaces` was added to the command. Both incidents share a
+root cause worth generalizing: **tools that fail silently on
+misconfiguration are more dangerous than tools that error loudly**,
+because a green (or merely non-crashing) CI run reads as "working"
+even when the actual check never ran.
 
 ## Future Roadmap
 
-- Gitleaks reusable workflow (first, cheapest, highest-impact)
-- IaC scan reusable workflow, generalized from `atlas-foundation`
-- OPA/Conftest custom policies
-- SBOM + Grype + Cosign pipeline against `sample-app/`
-- Semgrep SAST
-- Threat model, incident runbook
-- Retrofit `atlas-foundation/.github/workflows/ci.yml` to consume
-  this repo's reusable workflows
+- Containerize Tawira (Dockerfile) — prerequisite for the next item
+- SBOM + Grype + Cosign pipeline (`reusable-sbom-scan-sign.yml`),
+  targeting Tawira's built image (ADR-0001)
+- Semgrep SAST reusable workflow
+- Threat model and incident runbook for this repo
+- Tag a versioned release (`@v1`) once the workflow surface stabilizes,
+  so consumers can pin to a release instead of tracking `@main` directly
+
+## Documentation
+
+Architecture decisions are recorded using ADRs in `docs/adr/`.
+
+## Contributing
+
+Please read `CONTRIBUTING.md` before submitting changes.
+
+## License
+
+This project is licensed under the MIT License.
