@@ -45,3 +45,4 @@ jobs:
         with:
           working_directory: ${{ inputs.directory }}
           soft_fail: true
+          github_token: ${{ secrets.GITHUB_TOKEN }}
