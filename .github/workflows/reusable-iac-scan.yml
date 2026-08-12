@@ -1,0 +1,46 @@
+name: Reusable - IaC Security Scan
+
+on:
+  workflow_call:
+    inputs:
+      directory:
+        description: "Path to the Terraform tree to scan"
+        type: string
+        default: "terraform/"
+      checkov-skip-checks:
+        description: "Comma-separated Checkov check IDs to skip, each justified by a cited ADR in the calling repo"
+        type: string
+        default: ""
+      checkov-version:
+        description: "Pinned Checkov image tag — single source of truth, do not override per-consumer"
+        type: string
+        default: "3.3.10"
+
+jobs:
+  checkov:
+    name: Checkov (hard gate)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout consuming repository
+        uses: actions/checkout@v4
+
+      - name: Run Checkov
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: ${{ inputs.directory }}
+          quiet: true
+          soft_fail: false
+          skip_check: ${{ inputs.checkov-skip-checks }}
+
+  tfsec:
+    name: tfsec (second opinion, non-blocking)
+    runs-on: ubuntu-latest
+    continue-on-error: true   # informational only — Checkov is the hard gate, per ADR-0010
+    steps:
+      - name: Checkout consuming repository
+        uses: actions/checkout@v4
+
+      - name: Run tfsec
+        uses: aquasecurity/tfsec-action@v1.0.3
+        with:
+          working_directory: ${{ inputs.directory }}
