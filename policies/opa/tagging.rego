@@ -30,7 +30,7 @@ taggable_types := {
 
 # One deny message per resource, per missing tag — specific enough that a CI
 # failure tells you exactly what to fix without opening the policy source.
-deny[msg] {
+deny contains msg if {
 	change := input.resource_changes[_]
 	taggable_types[change.type]
 	not is_being_destroyed(change)
@@ -45,7 +45,7 @@ deny[msg] {
 	)
 }
 
-is_being_destroyed(change) {
+is_being_destroyed(change) if {
 	change.change.actions[_] == "delete"
 	count(change.change.actions) == 1
 }
