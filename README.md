@@ -189,9 +189,13 @@ introduction.
 ## Cost Model
 
 **$0 spent.** Every tool here (Gitleaks, Checkov, tfsec, OPA/Conftest,
-and the planned Syft/Grype/Cosign/Semgrep) is free and runs entirely
-inside GitHub Actions' free tier for public repos — no cloud spend of
-any kind is possible from this repo's own workflows.
+and the planned Syft/Grype/Cosign/Semgrep) is free. Both this repo and
+`atlas-foundation` are private, so runs draw from GitHub's private-repo
+free-tier Actions minutes (2,000/month on the Free plan), not the
+unlimited public-repo tier — worth tracking as more workflows and
+consumers are added, since that budget is finite and shared across
+every repo on the account, unlike the public-repo tier this originally
+assumed.
 
 ## Monitoring
 
