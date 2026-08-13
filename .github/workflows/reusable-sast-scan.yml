@@ -1,0 +1,55 @@
+name: Reusable - SAST Scan (Semgrep)
+
+on:
+  workflow_call:
+    inputs:
+      directory:
+        description: "Path to scan"
+        type: string
+        default: "."
+      config:
+        description: "Semgrep ruleset(s) — registry config (e.g. p/ci, p/owasp-top-ten) or a local path"
+        type: string
+        default: "p/ci"
+      semgrep-version:
+        description: "Pinned Semgrep version — single source of truth, do not override per-consumer"
+        type: string
+        default: "1.99.0"
+      fail-on-findings:
+        description: "Hard-fail the calling workflow if Semgrep reports any finding"
+        type: boolean
+        default: true
+
+jobs:
+  semgrep:
+    name: Semgrep SAST
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout consuming repository
+        uses: actions/checkout@v4
+
+      - name: Install Semgrep
+        run: pip install "semgrep==${{ inputs.semgrep-version }}"
+
+      - name: Run Semgrep
+        run: |
+          semgrep scan \
+            --config "${{ inputs.config }}" \
+            --sarif --output semgrep-results.sarif \
+            "${{ inputs.directory }}"
+
+          # --error is a separate, deliberate second pass: semgrep scan
+          # exits 0 by default regardless of findings, so the fail/don't
+          # -fail decision has to be an explicit branch, not a flag we
+          # can conditionally interpolate into one command.
+          if [ "${{ inputs.fail-on-findings }}" = "true" ]; then
+            semgrep scan --config "${{ inputs.config }}" "${{ inputs.directory }}" --error
+          fi
+
+      - name: Upload SARIF artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: semgrep-results
+          path: semgrep-results.sarif
+          retention-days: 30
