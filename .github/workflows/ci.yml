@@ -1,0 +1,24 @@
+name: Self-Validate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  opa-test:
+    name: OPA Policy Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install OPA
+        run: |
+          curl -L -o opa https://openpolicyagent.org/downloads/latest/opa_linux_amd64_static
+          chmod +x opa
+          sudo mv opa /usr/local/bin/
+
+      - name: Run policy unit tests
+        run: opa test policies/opa/ -v
