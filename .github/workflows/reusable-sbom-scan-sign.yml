@@ -1,0 +1,123 @@
+name: Reusable - SBOM, Vulnerability Scan, Sign
+
+on:
+  workflow_call:
+    inputs:
+      image-name:
+        description: "Full image ref to build and scan, e.g. ghcr.io/spacecode-art/tawira"
+        type: string
+        required: true
+      image-tag:
+        description: "Tag for the built image"
+        type: string
+        default: ${{ github.sha }}
+      dockerfile:
+        description: "Path to the Dockerfile to build"
+        type: string
+        default: "Dockerfile"
+      context:
+        description: "Build context path"
+        type: string
+        default: "."
+      build-args:
+        description: |
+          Newline-separated --build-arg entries. Client-safe values only —
+          never pass a secret here, it lands in image build logs. Runtime
+          secrets belong in the orchestrator's own secret manager, not this
+          input (see Tawira's Dockerfile comment on VITE_* vs
+          SUPABASE_SERVICE_ROLE_KEY/BREVO_API_KEY).
+        type: string
+        default: ""
+      fail-on-severity:
+        description: "Grype hard-fail threshold: negligible, low, medium, high, or critical"
+        type: string
+        default: "critical"
+      syft-version:
+        description: "Pinned Syft version — single source of truth, do not override per-consumer"
+        type: string
+        default: "1.18.0"
+      grype-version:
+        description: "Pinned Grype version — single source of truth, do not override per-consumer"
+        type: string
+        default: "0.85.0"
+      cosign-version:
+        description: "Pinned Cosign version — single source of truth, do not override per-consumer"
+        type: string
+        default: "2.4.1"
+    secrets:
+      registry-username:
+        required: true
+      registry-password:
+        required: true
+
+jobs:
+  build-scan-sign:
+    name: Build, SBOM, Scan, Sign
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write   # required for Cosign keyless (OIDC) signing
+
+    steps:
+      - name: Checkout consuming repository
+        uses: actions/checkout@v4
+
+      - name: Log in to registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ github.event.repository.owner.login && 'ghcr.io' }}
+          username: ${{ secrets.registry-username }}
+          password: ${{ secrets.registry-password }}
+
+      - name: Build image
+        run: |
+          docker build \
+            -f "${{ inputs.dockerfile }}" \
+            -t "${{ inputs.image-name }}:${{ inputs.image-tag }}" \
+            $(echo "${{ inputs.build-args }}" | sed '/^\s*$/d' | sed 's/^/--build-arg /') \
+            "${{ inputs.context }}"
+
+      - name: Install Syft
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh \
+            | sh -s -- -b /usr/local/bin v${{ inputs.syft-version }}
+
+      - name: Generate SBOM
+        run: |
+          syft "${{ inputs.image-name }}:${{ inputs.image-tag }}" \
+            -o spdx-json="sbom-${{ inputs.image-tag }}.spdx.json"
+
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-${{ inputs.image-tag }}
+          path: sbom-${{ inputs.image-tag }}.spdx.json
+          retention-days: 30   # SBOMs are the evidence — kept longer than plan artifacts
+
+      - name: Install Grype
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh \
+            | sh -s -- -b /usr/local/bin v${{ inputs.grype-version }}
+
+      - name: Scan SBOM for vulnerabilities
+        run: |
+          grype "sbom:sbom-${{ inputs.image-tag }}.spdx.json" \
+            --fail-on "${{ inputs.fail-on-severity }}" \
+            -o table
+
+      - name: Push image
+        # Only pushed after Grype passes — an image with a hard-fail
+        # finding never reaches the registry, let alone gets signed.
+        run: docker push "${{ inputs.image-name }}:${{ inputs.image-tag }}"
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3
+        with:
+          cosign-release: "v${{ inputs.cosign-version }}"
+
+      - name: Sign image (keyless, OIDC)
+        # Keyless signing over a long-lived key — no private key to
+        # rotate, leak, or store as a repo secret. Identity is this
+        # workflow run itself, verifiable via rekor's transparency log.
+        run: cosign sign --yes "${{ inputs.image-name }}:${{ inputs.image-tag }}"
