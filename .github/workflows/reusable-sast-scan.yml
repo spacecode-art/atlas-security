@@ -16,9 +16,9 @@ on:
         type: string
         default: "1.99.0"
       fail-on-findings:
-        description: "Hard-fail the calling workflow if Semgrep reports any finding"
+        description: "Hard-fail the calling workflow if Semgrep reports any finding — defaults soft during initial rollout to establish a baseline before gating (see ADR, pending)"
         type: boolean
-        default: true
+        default: false
 
 jobs:
   semgrep:
