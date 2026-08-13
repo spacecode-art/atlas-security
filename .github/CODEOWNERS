@@ -1,0 +1,11 @@
+# See ADR-0002 for the reasoning behind these two paths specifically.
+# Requires "Require review from Code Owners" enabled on the `main`
+# branch protection rule to actually take effect — that setting lives
+# in GitHub, not in this file.
+
+# The actual policy logic every consuming repo's CI trusts.
+/policies/opa/ @spacecode-art
+
+# The reusable workflows themselves — a change here goes live for
+# every consumer on their next CI run, with no review on their side.
+/.github/workflows/ @spacecode-art
