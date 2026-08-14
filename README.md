@@ -242,13 +242,17 @@ even when the actual check never ran.
 
 ## Future Roadmap
 
-- Containerize Tawira (Dockerfile) — prerequisite for the next item
-- SBOM + Grype + Cosign pipeline (`reusable-sbom-scan-sign.yml`),
-  targeting Tawira's built image (ADR-0001)
-- Semgrep SAST reusable workflow
-- Threat model and incident runbook for this repo
+- Capture real evidence from a live CI run against Tawira: SBOM
+  output, Grype scan results, Cosign signature/verification — mirror
+  `atlas-foundation`'s `docs/evidence/` pattern, currently missing here
+- Triage and ADR-document any real CVEs Grype finds in Tawira's image
+- SHA/tag pinning for consumers (currently `@main` only — see
+  Spoofing/Repudiation in the threat model)
 - Tag a versioned release (`@v1`) once the workflow surface stabilizes,
   so consumers can pin to a release instead of tracking `@main` directly
+- Enforce the skip-list ADR-citation convention in tooling rather than
+  relying on PR review alone (see Elevation of Privilege in the threat
+  model)
 
 ## Documentation
 
