@@ -15,10 +15,12 @@ repos call by reference, version-pinned, instead of reimplementing.
 ## Overview
 
 This repo does not scan itself in isolation — its value is proven by
-being *consumed*. `atlas-foundation`'s CI calls three of this repo's
+being *consumed*. `atlas-foundation`'s CI calls four of this repo's
 reusable workflows on every push (secrets scan, IaC scan, OPA policy
-scan), closing the loop from "security tooling exists" to "security
-tooling is actually load-bearing infrastructure."
+scan, SAST), and Tawira's CI calls three more (secrets scan, SAST,
+SBOM/vulnerability scan/sign) — two real, independently-owned repos
+depending on this one is what closes the loop from "security tooling
+exists" to "security tooling is actually load-bearing infrastructure."
 
 ## Objectives
 
@@ -42,6 +44,8 @@ graph TB
         GITLEAKS[reusable-secrets-scan.yml<br/>Gitleaks]
         IAC[reusable-iac-scan.yml<br/>Checkov + tfsec]
         OPA[reusable-opa-scan.yml<br/>Conftest]
+        SAST[reusable-sast-scan.yml<br/>Semgrep]
+        SBOM[reusable-sbom-scan-sign.yml<br/>Syft + Grype + Cosign]
         POLICIES[policies/opa/*.rego]
         OPA --> POLICIES
     end
@@ -58,10 +62,11 @@ graph TB
         POLICY_JOB -.calls.-> OPA
     end
 
-    subgraph "Consumers not yet wired (planned)"
+    subgraph "Tawira (second real consumer, live)"
         TAWIRA[Tawira SaaS app<br/>private repo]
-        SBOM[reusable-sbom-scan-sign.yml<br/>Syft + Grype + Cosign — not built yet]
-        TAWIRA -.will call.-> SBOM
+        TAWIRA -.calls.-> GITLEAKS
+        TAWIRA -.calls.-> SAST
+        TAWIRA -.calls.-> SBOM
     end
 ```
 
@@ -149,9 +154,17 @@ is the real ongoing validation of the Rego policies' correctness.
   all three `atlas-foundation` modules were missing `Owner`/`ManagedBy`
   tags before this policy existed (see `atlas-foundation` ADR-0020)
 
+**Live and consumed by Tawira today:**
+- `reusable-secrets-scan.yml` (Gitleaks) — passing
+- `reusable-sast-scan.yml` (Semgrep, `fail-on-findings: false` —
+  soft baseline per ADR-0003) — passing
+- `reusable-sbom-scan-sign.yml` (Syft SBOM + Grype vuln gate + Cosign
+  keyless signing, published to `ghcr.io/spacecode-art/tawira`) —
+  passing. Tawira does not call `reusable-opa-scan.yml`: that workflow
+  evaluates Terraform plan JSON specifically, and Tawira has no
+  Terraform, so it's a correct non-consumer rather than a gap.
+
 **Not yet built:**
-- SBOM + Grype + Cosign pipeline (blocked on Tawira's Dockerfile — ADR-0001)
-- Semgrep SAST
 - Threat model, incident runbook for this repo itself
 
 ## Design Decisions (ADRs)
@@ -242,8 +255,8 @@ even when the actual check never ran.
 
 ## Future Roadmap
 
-- Capture real evidence from a live CI run against Tawira: SBOM
-  output, Grype scan results, Cosign signature/verification — mirror
+- Capture real evidence from Tawira's now-live CI runs: SBOM output,
+  Grype scan results, Cosign signature/verification — mirror
   `atlas-foundation`'s `docs/evidence/` pattern, currently missing here
 - Triage and ADR-document any real CVEs Grype finds in Tawira's image
 - SHA/tag pinning for consumers (currently `@main` only — see
