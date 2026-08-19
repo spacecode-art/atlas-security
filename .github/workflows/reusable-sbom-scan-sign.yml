@@ -66,7 +66,7 @@ jobs:
       - name: Log in to registry
         uses: docker/login-action@v3
         with:
-          registry: ${{ github.event.repository.owner.login && 'ghcr.io' }}
+          registry: ghcr.io
           username: ${{ secrets.registry-username }}
           password: ${{ secrets.registry-password }}
 
@@ -111,6 +111,16 @@ jobs:
         # finding never reaches the registry, let alone gets signed.
         run: docker push "${{ inputs.image-name }}:${{ inputs.image-tag }}"
 
+      - name: Resolve pushed digest
+        # Sign by immutable digest, not the mutable tag — a tag could
+        # in principle be repointed between push and sign, which would
+        # make the signature attest to the wrong image. See ADR.
+        id: digest
+        run: |
+          DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' \
+            "${{ inputs.image-name }}:${{ inputs.image-tag }}")
+          echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
+
       - name: Install Cosign
         uses: sigstore/cosign-installer@v3
         with:
@@ -120,4 +130,4 @@ jobs:
         # Keyless signing over a long-lived key — no private key to
         # rotate, leak, or store as a repo secret. Identity is this
         # workflow run itself, verifiable via rekor's transparency log.
-        run: cosign sign --yes "${{ inputs.image-name }}:${{ inputs.image-tag }}"
+        run: cosign sign --yes "${{ steps.digest.outputs.digest }}"
