@@ -25,14 +25,14 @@ jobs:
       # atlas-security's own policies/ directory, not the calling repo's
       # working tree — workflow_call does not check that out for you.
       - name: Checkout atlas-security policies
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: spacecode-art/atlas-security
           ref: main
           path: atlas-security
 
       - name: Download Terraform plan artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: ${{ inputs.plan-artifact-name }}
 
