@@ -37,10 +37,10 @@ tooling and an already-accepted architecture decision.
   the noise pattern (MiniStack creds, duplicate subnet finding) is
   stable across future changes.
 - Graduation criteria to flip `fail-on-findings: true`:
-  1. Suppress the 3 known-false-positive credential findings
-     explicitly (Semgrep supports `# nosemgrep: <rule-id>` inline, or
-     a `.semgrepignore` scoped to provider blocks) rather than relying
-     on tribal knowledge that they're safe to ignore.
+  1. **Done** — the 3 credential findings are suppressed inline via
+     `# nosemgrep: terraform.aws.security.aws-provider-static-credentials...`
+     in all three `atlas-foundation` provider blocks, each citing this
+     ADR.
   2. Confirm the subnet finding stays consistent with Checkov's
      already-accepted `CKV_AWS_130` skip — if one drifts from the
      other, that's a signal worth investigating before gating on it.
@@ -55,9 +55,10 @@ tooling and an already-accepted architecture decision.
   introduced today would show up in the SARIF artifact and the job
   log, but would not block merge. This is an accepted, temporary gap,
   not an oversight.
-- The 3 credential-pattern findings will keep re-appearing every run
-  until explicitly suppressed (action item, not yet done) — expect
-  the finding count to stay at 4, not 0, until that suppression lands.
+- The 3 credential-pattern findings are now suppressed inline
+  (`nosemgrep`, citing this ADR). Going forward, expect the finding
+  count to hold at 1 — the accepted `aws-subnet-has-public-ip-address`
+  finding — not 0, until criterion 2 and 3 above are also satisfied.
 - This baseline is specific to `terraform/` scanned with `p/terraform`.
   If Semgrep's config or target directory changes (e.g. once app code
   exists per ADR-0001's Tawira containerization work), this baseline

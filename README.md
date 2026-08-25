@@ -79,17 +79,21 @@ atlas-security/
 │       ├── reusable-secrets-scan.yml
 │       ├── reusable-iac-scan.yml
 │       ├── reusable-opa-scan.yml
-│       ├── reusable-sbom-scan-sign.yml   # planned — see ADR-0001
-│       └── reusable-sast.yml              # planned
+│       ├── reusable-sbom-scan-sign.yml
+│       └── reusable-sast-scan.yml
 ├── policies/
 │   └── opa/
 │       ├── tagging.rego
 │       └── tagging_test.rego
 ├── docs/
 │   ├── adr/
-│   │   └── ADR-0001-use-tawira-instead-of-sample-app.md
-│   ├── threat-model.md         # planned
-│   └── incident-runbook.md     # planned
+│   │   ├── ADR-0001-use-tawira-instead-of-sample-app.md
+│   │   ├── ADR-0002-require-codeowner-review-on-policies.md
+│   │   └── ADR-0003-semgrep-sast-baseline-and-graduation-criteria.md
+│   ├── threat-model.md
+│   └── incident-runbook.md
+├── .github/
+│   └── CODEOWNERS
 ├── .editorconfig
 ├── .gitignore
 ├── CHANGELOG.md
@@ -165,20 +169,27 @@ is the real ongoing validation of the Rego policies' correctness.
   Terraform, so it's a correct non-consumer rather than a gap.
 
 **Not yet built:**
-- Threat model, incident runbook for this repo itself
+- `docs/evidence/` — real SBOM/Grype/Cosign output captured from
+  Tawira's live CI runs (needs pulling from that repo's own Actions
+  history, not fabricated here)
+- SHA/tag pinning for consumers (still `@main`)
 
 ## Design Decisions (ADRs)
 
 | ADR | Decision |
 |---|---|
 | 0001 | Use Tawira (private SaaS repo) instead of a throwaway sample-app |
+| 0002 | Require CODEOWNERS review on `policies/` and workflow changes |
+| 0003 | Semgrep SAST baseline and graduation criteria to hard-fail |
 
 ## Threat Model
 
-Not yet built. Deferred until the SBOM/Grype/Cosign and Semgrep phases
-land — a threat model written before this repo's own attack surface
-(consuming repos' trust in pinned workflow refs, Rego policy supply
-chain) is fully shaped would need a rewrite anyway.
+Full STRIDE analysis: [`docs/threat-model.md`](docs/threat-model.md).
+Covers the reusable workflows, the OPA policies, and consumption by
+`atlas-foundation` and Tawira. Known open gaps carried from it: no
+SHA/tag pinning for consumers (`@main` only — Spoofing), and the
+skip-list ADR-citation convention is enforced by review only, not
+tooling (Elevation of Privilege).
 
 ## Security Review
 
@@ -202,7 +213,7 @@ introduction.
 ## Cost Model
 
 **$0 spent.** Every tool here (Gitleaks, Checkov, tfsec, OPA/Conftest,
-and the planned Syft/Grype/Cosign/Semgrep) is free. Both this repo and
+Syft, Grype, Cosign, Semgrep) is free. Both this repo and
 `atlas-foundation` are private, so runs draw from GitHub's private-repo
 free-tier Actions minutes (2,000/month on the Free plan), not the
 unlimited public-repo tier — worth tracking as more workflows and
@@ -218,10 +229,10 @@ repo's Actions history, which is the audit trail of every scan run.
 
 ## Incident Runbook
 
-Not yet built. First candidate incident type once written: a reusable
-workflow reference (`@main`) breaking every consumer simultaneously if
-a change here isn't backward compatible — see the Postmortem below for
-a related, already-experienced failure mode.
+Full runbook: [`docs/incident-runbook.md`](docs/incident-runbook.md).
+Covers: `opa test` failures, a reusable-workflow break propagating to
+every consumer on `@main` simultaneously, and Semgrep/Checkov false-
+positive triage.
 
 ## Postmortem Example
 
