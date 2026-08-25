@@ -8,9 +8,9 @@ on:
         type: string
         default: "terraform/"
       trivy-version:
-        description: "Pinned Trivy image tag — single source of truth, do not override per-consumer"
+        description: "Pinned Trivy binary version — single source of truth, do not override per-consumer"
         type: string
-        default: "0.56.2"
+        default: "0.69.3"
       severity:
         description: "Comma-separated severities to report (Trivy's own filter, separate from Checkov/tfsec's skip-lists)"
         type: string
@@ -26,7 +26,13 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Run Trivy config scan
-        uses: aquasecurity/trivy-action@0.29.0
+        # Pinned to commit SHA, not a version tag — CVE-2026-33634
+        # (March 2026): an attacker force-pushed 76 of 77 trivy-action
+        # version tags, including ones GitHub marked "immutable," to
+        # malicious commits. v0.35.0 (this SHA) was the one tag that
+        # survived untouched. Tags are not a safe pin target for this
+        # action going forward; see ADR-0004 update.
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
         with:
           scan-type: config
           scan-ref: ${{ inputs.directory }}
