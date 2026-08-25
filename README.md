@@ -25,7 +25,7 @@ exists" to "security tooling is actually load-bearing infrastructure."
 ## Objectives
 
 - Reusable GitHub Actions workflows: secrets scanning (Gitleaks), IaC
-  scanning (Checkov + tfsec), SBOM generation and vulnerability
+  scanning (Checkov + tfsec + Trivy), SBOM generation and vulnerability
   scanning (Syft + Grype), artifact signing (Cosign), SAST (Semgrep)
 - OPA/Conftest policies for repo-specific standards not covered by
   off-the-shelf scanners
@@ -80,7 +80,8 @@ atlas-security/
 │       ├── reusable-iac-scan.yml
 │       ├── reusable-opa-scan.yml
 │       ├── reusable-sbom-scan-sign.yml
-│       └── reusable-sast-scan.yml
+│       ├── reusable-sast-scan.yml
+│       └── reusable-trivy-scan.yml
 ├── policies/
 │   └── opa/
 │       ├── tagging.rego
@@ -112,6 +113,7 @@ application, once it has a Dockerfile.
 |---|---|
 | **Gitleaks** over TruffleHog for secrets scanning | Faster on large repos, actively maintained GitHub Action with a straightforward pass/fail signal for CI gating. |
 | **Checkov as the hard gate, tfsec as second opinion** | Broader AWS-specific check coverage and SARIF/Actions integration in Checkov; tfsec's independent rule engine catches anything Checkov's ruleset misses, without blocking merges on its own (see `atlas-foundation` ADR-0010). |
+| **Trivy as a third opinion** over stopping at Checkov+tfsec | Independent rule engine catches misconfigurations neither of the other two flag (ADR-0004); kept non-blocking (`continue-on-error`) to avoid three-way gate conflicts. |
 | **OPA/Conftest** over Sentinel or custom scripts for policy-as-code | Free/open-source, Rego is purpose-built for structured policy evaluation over JSON (Terraform plan output), and unit-testable via `opa test` — a custom bash script checking tags would not be. |
 | **Reusable `workflow_call` workflows** over copy-pasted YAML per repo | Single source of truth: a skip-list or tool-version change made once here propagates to every consuming repo on their next run, rather than needing N repos updated in lockstep. |
 | **Tawira over a throwaway sample-app** for SBOM/Grype/Cosign (ADR-0001) | Real, evolving dependency tree produces real, evolving findings — a static sample app's findings would go stale immediately. |
@@ -181,6 +183,7 @@ is the real ongoing validation of the Rego policies' correctness.
 | 0001 | Use Tawira (private SaaS repo) instead of a throwaway sample-app |
 | 0002 | Require CODEOWNERS review on `policies/` and workflow changes |
 | 0003 | Semgrep SAST baseline and graduation criteria to hard-fail |
+| 0004 | Add Trivy as a third, non-blocking IaC scan opinion |
 
 ## Threat Model
 

@@ -1,0 +1,44 @@
+name: Reusable - IaC Scan (Trivy, third opinion)
+
+on:
+  workflow_call:
+    inputs:
+      directory:
+        description: "Path to the Terraform tree to scan"
+        type: string
+        default: "terraform/"
+      trivy-version:
+        description: "Pinned Trivy image tag — single source of truth, do not override per-consumer"
+        type: string
+        default: "0.56.2"
+      severity:
+        description: "Comma-separated severities to report (Trivy's own filter, separate from Checkov/tfsec's skip-lists)"
+        type: string
+        default: "HIGH,CRITICAL"
+
+jobs:
+  trivy:
+    name: Trivy config scan (third opinion, non-blocking)
+    runs-on: ubuntu-latest
+    continue-on-error: true   # informational only — Checkov remains the hard gate, per atlas-foundation ADR-0010
+    steps:
+      - name: Checkout consuming repository
+        uses: actions/checkout@v6
+
+      - name: Run Trivy config scan
+        uses: aquasecurity/trivy-action@0.29.0
+        with:
+          scan-type: config
+          scan-ref: ${{ inputs.directory }}
+          severity: ${{ inputs.severity }}
+          format: sarif
+          output: trivy-results.sarif
+          exit-code: 0   # never block — see ADR-0004; upload artifact regardless of findings
+
+      - name: Upload SARIF artifact
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: trivy-results
+          path: trivy-results.sarif
+          retention-days: 30
