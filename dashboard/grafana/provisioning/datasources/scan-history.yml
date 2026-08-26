@@ -4,8 +4,7 @@ datasources:
   - name: Scan History (CSV)
     type: marcusolsson-csv-datasource
     access: proxy
-    url: http://metrics-server
+    url: http://metrics-server/scan-history.csv
     jsonData:
-      path: scan-history.csv
       storage: url
     isDefault: true
