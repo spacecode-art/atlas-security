@@ -35,6 +35,9 @@ exists" to "security tooling is actually load-bearing infrastructure."
   shared tooling itself
 - Prove the platform claim by retrofitting `atlas-foundation` to
   consume it
+- Local security dashboard (Grafana + committed CSV scan history) —
+  visual trend view across Checkov, tfsec, Trivy, Semgrep, Grype, and
+  Gitleaks findings over time (ADR-0005)
 
 ## Architecture Diagram
 
@@ -99,7 +102,18 @@ atlas-security/
 ├── .gitignore
 ├── CHANGELOG.md
 ├── LICENSE
-└── README.md
+├── README.md
+├── dashboard/
+│   ├── docker-compose.yml
+│   ├── metrics/
+│   │   └── scan-history.csv
+│   └── grafana/
+│       ├── provisioning/
+│       │   ├── datasources/scan-history.yml
+│       │   └── dashboards/dashboard.yml
+│       └── dashboards/security-scan-trends.json
+└── scripts/
+    └── ingest-scan-results.py
 ```
 
 `sample-app/` from the original plan is retired — see
@@ -184,6 +198,7 @@ is the real ongoing validation of the Rego policies' correctness.
 | 0002 | Require CODEOWNERS review on `policies/` and workflow changes |
 | 0003 | Semgrep SAST baseline and graduation criteria to hard-fail |
 | 0004 | Add Trivy as a third, non-blocking IaC scan opinion |
+| 0005 | Security dashboard uses CSV history + Grafana, not Prometheus |
 
 ## Threat Model
 
@@ -226,9 +241,21 @@ assumed.
 
 ## Monitoring
 
-Not applicable in the traditional sense — this repo produces CI gates,
-not running infrastructure. The closest equivalent is each consuming
-repo's Actions history, which is the audit trail of every scan run.
+A local Grafana dashboard (`dashboard/`) visualizes scan-finding
+trends over time across every tool this repo ships: Checkov, tfsec,
+Trivy, Semgrep, Grype, and Gitleaks. Backed by a committed CSV history
+(`dashboard/metrics/scan-history.csv`), not a continuously-running
+metrics pipeline — see ADR-0005 for why CSV over Prometheus. Run it:
+
+```bash
+cd dashboard
+docker compose up
+```
+
+Then open `http://localhost:3000`. Rows are added via
+`scripts/ingest-scan-results.py` after running any of this repo's
+scanners against a real output file — not yet wired into CI
+automatically (see Future Roadmap).
 
 ## Incident Runbook
 
@@ -269,6 +296,8 @@ even when the actual check never ran.
 
 ## Future Roadmap
 
+- Wire `scripts/ingest-scan-results.py` into each reusable workflow's
+  CI run automatically, rather than requiring a manual invocation
 - Capture real evidence from Tawira's now-live CI runs: SBOM output,
   Grype scan results, Cosign signature/verification — mirror
   `atlas-foundation`'s `docs/evidence/` pattern, currently missing here
