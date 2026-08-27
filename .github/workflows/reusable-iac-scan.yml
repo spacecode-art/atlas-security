@@ -15,6 +15,10 @@ on:
         description: "Pinned Checkov image tag — single source of truth, do not override per-consumer"
         type: string
         default: "3.3.10"
+    secrets:
+      ingest-token:
+        description: "PAT with permission to dispatch to spacecode-art/atlas-security. Optional — dashboard ingestion (ADR-0006) is skipped if unset."
+        required: false
 
 jobs:
   checkov:
@@ -22,15 +26,52 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout consuming repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
       - name: Run Checkov
-        uses: bridgecrewio/checkov-action@v12
+        uses: bridgecrewio/checkov-action@5659ddea96102e16d8f221b3d8402453c0b1c150 # v12
         with:
           directory: ${{ inputs.directory }}
           quiet: true
           soft_fail: false
           skip_check: ${{ inputs.checkov-skip-checks }}
+
+      - name: Re-run Checkov for JSON (dashboard ingestion only)
+        # Separate from the gate above by design: the marketplace
+        # action's own JSON-output path isn't a stable contract we
+        # want the hard gate depending on, so this is a second,
+        # independent, non-blocking invocation solely to produce a
+        # file for ingestion. See ADR-0006.
+        if: always()
+        continue-on-error: true
+        run: |
+          pip install "checkov==${{ inputs.checkov-version }}"
+          checkov -d "${{ inputs.directory }}" \
+            --skip-check "${{ inputs.checkov-skip-checks }}" \
+            -o json --output-file-path . \
+            --compact || true
+          mv results_json.json checkov-results.json 2>/dev/null || true
+
+      - name: Report to dashboard
+        if: always() && hashFiles('checkov-results.json') != ''
+        continue-on-error: true
+        env:
+          INGEST_TOKEN: ${{ secrets.ingest-token }}
+        run: |
+          if [ -z "$INGEST_TOKEN" ]; then
+            echo "No ingest-token secret — skipping dashboard dispatch (ADR-0006)."
+            exit 0
+          fi
+          REPO_NAME="${GITHUB_REPOSITORY##*/}"
+          jq -n --arg tool checkov --arg repo "$REPO_NAME" \
+            --slurpfile findings checkov-results.json \
+            '{event_type:"scan-result", client_payload:{tool:$tool, repo:$repo, findings:$findings[0]}}' \
+            > dispatch.json
+          curl -sS -f -X POST \
+            -H "Authorization: token $INGEST_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/spacecode-art/atlas-security/dispatches \
+            -d @dispatch.json
 
   tfsec:
     name: tfsec (second opinion, non-blocking)
@@ -38,11 +79,39 @@ jobs:
     continue-on-error: true   # informational only — Checkov is the hard gate, per ADR-0010
     steps:
       - name: Checkout consuming repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
       - name: Run tfsec
-        uses: aquasecurity/tfsec-action@v1.0.3
+        uses: aquasecurity/tfsec-action@b466648d6e39e7c75324f25d83891162a721f2d6 # v1.0.3
         with:
           working_directory: ${{ inputs.directory }}
           soft_fail: true
           github_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Re-run tfsec for JSON (dashboard ingestion only)
+        if: always()
+        continue-on-error: true
+        run: |
+          curl -sL https://raw.githubusercontent.com/aquasecurity/tfsec/master/scripts/install_linux.sh | bash
+          tfsec "${{ inputs.directory }}" --format json --out tfsec-results.json --soft-fail || true
+
+      - name: Report to dashboard
+        if: always() && hashFiles('tfsec-results.json') != ''
+        continue-on-error: true
+        env:
+          INGEST_TOKEN: ${{ secrets.ingest-token }}
+        run: |
+          if [ -z "$INGEST_TOKEN" ]; then
+            echo "No ingest-token secret — skipping dashboard dispatch (ADR-0006)."
+            exit 0
+          fi
+          REPO_NAME="${GITHUB_REPOSITORY##*/}"
+          jq -n --arg tool tfsec --arg repo "$REPO_NAME" \
+            --slurpfile findings tfsec-results.json \
+            '{event_type:"scan-result", client_payload:{tool:$tool, repo:$repo, findings:$findings[0]}}' \
+            > dispatch.json
+          curl -sS -f -X POST \
+            -H "Authorization: token $INGEST_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/spacecode-art/atlas-security/dispatches \
+            -d @dispatch.json

@@ -6,6 +6,26 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 ## [Unreleased]
 
 ### Added
+- `scripts/lint-skip-citations.py` — enforces the skip-list
+  ADR-citation convention in tooling instead of relying on PR review
+  alone (ADR-0008)
+
+### Changed
+- Every third-party Action across every workflow pinned to a commit
+  SHA instead of a mutable tag (ADR-0007)
+
+## [1.0.0] - 2026-08-27
+
+### Added
+- `ingest-scan-results.yml` — `repository_dispatch` receiver that
+  commits scan results to `dashboard/metrics/scan-history.csv` on
+  atlas-security's own `GITHUB_TOKEN` (ADR-0006), closing the manual-
+  invocation gap left by ADR-0005
+- Optional `ingest-token` secret + dashboard-dispatch step added to
+  `reusable-iac-scan.yml` (Checkov, tfsec), `reusable-sast-scan.yml`
+  (Semgrep), `reusable-sbom-scan-sign.yml` (Grype), and
+  `reusable-secrets-scan.yml` (Gitleaks, count-only/redacted per
+  ADR-0006 — raw secret matches never leave the runner)
 - Repository initialized: governance files, README, CHANGELOG
 - `reusable-secrets-scan.yml` — Gitleaks wrapper, full-history scan
 - `reusable-iac-scan.yml` — Checkov (hard gate) + tfsec (non-blocking)

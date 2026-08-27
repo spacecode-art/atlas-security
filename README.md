@@ -78,13 +78,15 @@ graph TB
 ```text
 atlas-security/
 ├── .github/
-│   └── workflows/
-│       ├── reusable-secrets-scan.yml
-│       ├── reusable-iac-scan.yml
-│       ├── reusable-opa-scan.yml
-│       ├── reusable-sbom-scan-sign.yml
-│       ├── reusable-sast-scan.yml
-│       └── reusable-trivy-scan.yml
+│   ├── workflows/
+│   │   ├── reusable-secrets-scan.yml
+│   │   ├── reusable-iac-scan.yml
+│   │   ├── reusable-opa-scan.yml
+│   │   ├── reusable-sbom-scan-sign.yml
+│   │   ├── reusable-sast-scan.yml
+│   │   ├── reusable-trivy-scan.yml
+│   │   └── ingest-scan-results.yml
+│   └── CODEOWNERS
 ├── policies/
 │   └── opa/
 │       ├── tagging.rego
@@ -93,11 +95,14 @@ atlas-security/
 │   ├── adr/
 │   │   ├── ADR-0001-use-tawira-instead-of-sample-app.md
 │   │   ├── ADR-0002-require-codeowner-review-on-policies.md
-│   │   └── ADR-0003-semgrep-sast-baseline-and-graduation-criteria.md
+│   │   ├── ADR-0003-semgrep-sast-baseline-and-graduation-criteria.md
+│   │   ├── ADR-0004-add-trivy-third-opinion-iac-scan.md
+│   │   ├── ADR-0005-security-dashboard-csv-over-prometheus.md
+│   │   ├── ADR-0006-repository-dispatch-for-cross-repo-dashboard-ingestion.md
+│   │   ├── ADR-0007-sha-pin-all-third-party-actions.md
+│   │   └── ADR-0008-lint-skip-list-adr-citations.md
 │   ├── threat-model.md
 │   └── incident-runbook.md
-├── .github/
-│   └── CODEOWNERS
 ├── .editorconfig
 ├── .gitignore
 ├── CHANGELOG.md
@@ -113,7 +118,8 @@ atlas-security/
 │       │   └── dashboards/dashboard.yml
 │       └── dashboards/security-scan-trends.json
 └── scripts/
-    └── ingest-scan-results.py
+    ├── ingest-scan-results.py
+    └── lint-skip-citations.py
 ```
 
 `sample-app/` from the original plan is retired — see
@@ -188,7 +194,14 @@ is the real ongoing validation of the Rego policies' correctness.
 - `docs/evidence/` — real SBOM/Grype/Cosign output captured from
   Tawira's live CI runs (needs pulling from that repo's own Actions
   history, not fabricated here)
-- SHA/tag pinning for consumers (still `@main`)
+- The `ingest-token` secret is configured for `atlas-foundation` but
+  not yet for Tawira, so today only one of the two real consumers
+  reports to the dashboard (ADR-0006)
+- `scripts/lint-skip-citations.py` (ADR-0008) exists but isn't yet
+  wired into any consumer's CI as an actual gating step
+- SHA/tag pinning for *this repo's own* Action dependencies is done
+  (ADR-0007); pinning for *consumers referencing this repo's reusable
+  workflows* is still `@main` — see Future Roadmap
 
 ## Design Decisions (ADRs)
 
@@ -199,15 +212,21 @@ is the real ongoing validation of the Rego policies' correctness.
 | 0003 | Semgrep SAST baseline and graduation criteria to hard-fail |
 | 0004 | Add Trivy as a third, non-blocking IaC scan opinion |
 | 0005 | Security dashboard uses CSV history + Grafana, not Prometheus |
+| 0006 | Wire dashboard ingestion into CI via `repository_dispatch` |
+| 0007 | Pin every third-party Action to a commit SHA, not a tag |
+| 0008 | Enforce skip-list ADR citations with a script, not review alone |
 
 ## Threat Model
 
 Full STRIDE analysis: [`docs/threat-model.md`](docs/threat-model.md).
 Covers the reusable workflows, the OPA policies, and consumption by
-`atlas-foundation` and Tawira. Known open gaps carried from it: no
-SHA/tag pinning for consumers (`@main` only — Spoofing), and the
-skip-list ADR-citation convention is enforced by review only, not
-tooling (Elevation of Privilege).
+`atlas-foundation` and Tawira. Known open gaps carried from it:
+consumers still pin this repo's reusable workflows by `@main` (this
+repo's *own* third-party Action pins were fixed in ADR-0007, but
+consumer-facing pinning of this repo is still open — Spoofing), and
+the skip-list ADR-citation convention now has a lint tool (ADR-0008)
+but isn't wired into any consumer's CI as a gate yet (Elevation of
+Privilege).
 
 ## Security Review
 
@@ -252,10 +271,12 @@ cd dashboard
 docker compose up
 ```
 
-Then open `http://localhost:3000`. Rows are added via
-`scripts/ingest-scan-results.py` after running any of this repo's
-scanners against a real output file — not yet wired into CI
-automatically (see Future Roadmap).
+Then open `http://localhost:3000`. Rows are added to
+`dashboard/metrics/scan-history.csv` automatically: each reusable
+workflow dispatches its result to `ingest-scan-results.yml` (this
+repo), which runs `scripts/ingest-scan-results.py` and commits the row
+— see ADR-0006. `scripts/ingest-scan-results.py` remains available for
+manual/local invocation against a raw scan output file too.
 
 ## Incident Runbook
 
@@ -296,19 +317,24 @@ even when the actual check never ran.
 
 ## Future Roadmap
 
-- Wire `scripts/ingest-scan-results.py` into each reusable workflow's
-  CI run automatically, rather than requiring a manual invocation
+- Wire `ingest-token` secret into Tawira's CI (already wired for
+  atlas-foundation) so both real consumers report to the dashboard,
+  not just one — see ADR-0006
 - Capture real evidence from Tawira's now-live CI runs: SBOM output,
   Grype scan results, Cosign signature/verification — mirror
   `atlas-foundation`'s `docs/evidence/` pattern, currently missing here
 - Triage and ADR-document any real CVEs Grype finds in Tawira's image
-- SHA/tag pinning for consumers (currently `@main` only — see
-  Spoofing/Repudiation in the threat model)
-- Tag a versioned release (`@v1`) once the workflow surface stabilizes,
-  so consumers can pin to a release instead of tracking `@main` directly
-- Enforce the skip-list ADR-citation convention in tooling rather than
-  relying on PR review alone (see Elevation of Privilege in the threat
-  model)
+- SHA/tag pinning is done for this repo's own third-party Actions
+  (ADR-0007) and for consumers' references to *this repo's* reusable
+  workflows is the next step once `v1.0.0` is tagged and pushed —
+  switch `@main` to `@v1` in `atlas-foundation`'s `ci.yml` (and
+  Tawira's) at that point
+- Wire `scripts/lint-skip-citations.py` (ADR-0008) into
+  `atlas-foundation`'s (and eventually Tawira's) CI as an actual
+  gating step, not just an available script
+- Configure Dependabot (or equivalent) to open PRs bumping the pinned
+  SHAs from ADR-0007 on a schedule, so pinning doesn't calcify into
+  "never updated"
 
 ## Documentation
 

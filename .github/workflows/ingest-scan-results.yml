@@ -1,0 +1,44 @@
+name: Ingest Scan Result (dashboard)
+
+on:
+  repository_dispatch:
+    types: [scan-result]
+
+permissions:
+  contents: write
+
+jobs:
+  ingest:
+    name: Append scan result to dashboard CSV
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout atlas-security
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Extract payload
+        id: payload
+        run: |
+          echo '${{ toJson(github.event.client_payload) }}' > payload.json
+          echo "tool=$(jq -r '.tool' payload.json)" >> "$GITHUB_OUTPUT"
+          echo "repo=$(jq -r '.repo' payload.json)" >> "$GITHUB_OUTPUT"
+          jq '.findings' payload.json > findings.json
+
+      - name: Run ingest script
+        run: |
+          python3 scripts/ingest-scan-results.py \
+            --tool "${{ steps.payload.outputs.tool }}" \
+            --repo "${{ steps.payload.outputs.repo }}" \
+            --input findings.json \
+            --output dashboard/metrics/scan-history.csv
+
+      - name: Commit and push
+        run: |
+          git config user.name "atlas-security-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add dashboard/metrics/scan-history.csv
+          if git diff --cached --quiet; then
+            echo "No change to scan-history.csv — nothing to commit."
+            exit 0
+          fi
+          git commit -m "chore(dashboard): ingest ${{ steps.payload.outputs.tool }} result from ${{ steps.payload.outputs.repo }}"
+          git push

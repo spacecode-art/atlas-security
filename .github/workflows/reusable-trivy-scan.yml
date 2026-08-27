@@ -23,7 +23,7 @@ jobs:
     continue-on-error: true   # informational only — Checkov remains the hard gate, per atlas-foundation ADR-0010
     steps:
       - name: Checkout consuming repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
       - name: Run Trivy config scan
         # Pinned to commit SHA, not a version tag — CVE-2026-33634
@@ -43,7 +43,7 @@ jobs:
 
       - name: Upload SARIF artifact
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: trivy-results
           path: trivy-results.sarif
