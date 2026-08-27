@@ -25,7 +25,7 @@ exists" to "security tooling is actually load-bearing infrastructure."
 ## Objectives
 
 - Reusable GitHub Actions workflows: secrets scanning (Gitleaks), IaC
-  scanning (Checkov + tfsec), SBOM generation and vulnerability
+  scanning (Checkov + tfsec + Trivy), SBOM generation and vulnerability
   scanning (Syft + Grype), artifact signing (Cosign), SAST (Semgrep)
 - OPA/Conftest policies for repo-specific standards not covered by
   off-the-shelf scanners
@@ -35,6 +35,9 @@ exists" to "security tooling is actually load-bearing infrastructure."
   shared tooling itself
 - Prove the platform claim by retrofitting `atlas-foundation` to
   consume it
+- Local security dashboard (Grafana + committed CSV scan history) —
+  visual trend view across Checkov, tfsec, Trivy, Semgrep, Grype, and
+  Gitleaks findings over time (ADR-0005)
 
 ## Architecture Diagram
 
@@ -75,26 +78,48 @@ graph TB
 ```text
 atlas-security/
 ├── .github/
-│   └── workflows/
-│       ├── reusable-secrets-scan.yml
-│       ├── reusable-iac-scan.yml
-│       ├── reusable-opa-scan.yml
-│       ├── reusable-sbom-scan-sign.yml   # planned — see ADR-0001
-│       └── reusable-sast.yml              # planned
+│   ├── workflows/
+│   │   ├── reusable-secrets-scan.yml
+│   │   ├── reusable-iac-scan.yml
+│   │   ├── reusable-opa-scan.yml
+│   │   ├── reusable-sbom-scan-sign.yml
+│   │   ├── reusable-sast-scan.yml
+│   │   ├── reusable-trivy-scan.yml
+│   │   └── ingest-scan-results.yml
+│   └── CODEOWNERS
 ├── policies/
 │   └── opa/
 │       ├── tagging.rego
 │       └── tagging_test.rego
 ├── docs/
 │   ├── adr/
-│   │   └── ADR-0001-use-tawira-instead-of-sample-app.md
-│   ├── threat-model.md         # planned
-│   └── incident-runbook.md     # planned
+│   │   ├── ADR-0001-use-tawira-instead-of-sample-app.md
+│   │   ├── ADR-0002-require-codeowner-review-on-policies.md
+│   │   ├── ADR-0003-semgrep-sast-baseline-and-graduation-criteria.md
+│   │   ├── ADR-0004-add-trivy-third-opinion-iac-scan.md
+│   │   ├── ADR-0005-security-dashboard-csv-over-prometheus.md
+│   │   ├── ADR-0006-repository-dispatch-for-cross-repo-dashboard-ingestion.md
+│   │   ├── ADR-0007-sha-pin-all-third-party-actions.md
+│   │   └── ADR-0008-lint-skip-list-adr-citations.md
+│   ├── threat-model.md
+│   └── incident-runbook.md
 ├── .editorconfig
 ├── .gitignore
 ├── CHANGELOG.md
 ├── LICENSE
-└── README.md
+├── README.md
+├── dashboard/
+│   ├── docker-compose.yml
+│   ├── metrics/
+│   │   └── scan-history.csv
+│   └── grafana/
+│       ├── provisioning/
+│       │   ├── datasources/scan-history.yml
+│       │   └── dashboards/dashboard.yml
+│       └── dashboards/security-scan-trends.json
+└── scripts/
+    ├── ingest-scan-results.py
+    └── lint-skip-citations.py
 ```
 
 `sample-app/` from the original plan is retired — see
@@ -108,6 +133,7 @@ application, once it has a Dockerfile.
 |---|---|
 | **Gitleaks** over TruffleHog for secrets scanning | Faster on large repos, actively maintained GitHub Action with a straightforward pass/fail signal for CI gating. |
 | **Checkov as the hard gate, tfsec as second opinion** | Broader AWS-specific check coverage and SARIF/Actions integration in Checkov; tfsec's independent rule engine catches anything Checkov's ruleset misses, without blocking merges on its own (see `atlas-foundation` ADR-0010). |
+| **Trivy as a third opinion** over stopping at Checkov+tfsec | Independent rule engine catches misconfigurations neither of the other two flag (ADR-0004); kept non-blocking (`continue-on-error`) to avoid three-way gate conflicts. |
 | **OPA/Conftest** over Sentinel or custom scripts for policy-as-code | Free/open-source, Rego is purpose-built for structured policy evaluation over JSON (Terraform plan output), and unit-testable via `opa test` — a custom bash script checking tags would not be. |
 | **Reusable `workflow_call` workflows** over copy-pasted YAML per repo | Single source of truth: a skip-list or tool-version change made once here propagates to every consuming repo on their next run, rather than needing N repos updated in lockstep. |
 | **Tawira over a throwaway sample-app** for SBOM/Grype/Cosign (ADR-0001) | Real, evolving dependency tree produces real, evolving findings — a static sample app's findings would go stale immediately. |
@@ -172,13 +198,25 @@ is the real ongoing validation of the Rego policies' correctness.
 | ADR | Decision |
 |---|---|
 | 0001 | Use Tawira (private SaaS repo) instead of a throwaway sample-app |
+| 0002 | Require CODEOWNERS review on `policies/` and workflow changes |
+| 0003 | Semgrep SAST baseline and graduation criteria to hard-fail |
+| 0004 | Add Trivy as a third, non-blocking IaC scan opinion |
+| 0005 | Security dashboard uses CSV history + Grafana, not Prometheus |
+| 0006 | Wire dashboard ingestion into CI via `repository_dispatch` |
+| 0007 | Pin every third-party Action to a commit SHA, not a tag |
+| 0008 | Enforce skip-list ADR citations with a script, not review alone |
 
 ## Threat Model
 
-Not yet built. Deferred until the SBOM/Grype/Cosign and Semgrep phases
-land — a threat model written before this repo's own attack surface
-(consuming repos' trust in pinned workflow refs, Rego policy supply
-chain) is fully shaped would need a rewrite anyway.
+Full STRIDE analysis: [`docs/threat-model.md`](docs/threat-model.md).
+Covers the reusable workflows, the OPA policies, and consumption by
+`atlas-foundation` and Tawira. Known open gaps carried from it:
+consumers still pin this repo's reusable workflows by `@main` (this
+repo's *own* third-party Action pins were fixed in ADR-0007, but
+consumer-facing pinning of this repo is still open — Spoofing), and
+the skip-list ADR-citation convention now has a lint tool (ADR-0008)
+but isn't wired into any consumer's CI as a gate yet (Elevation of
+Privilege).
 
 ## Security Review
 
@@ -202,7 +240,7 @@ introduction.
 ## Cost Model
 
 **$0 spent.** Every tool here (Gitleaks, Checkov, tfsec, OPA/Conftest,
-and the planned Syft/Grype/Cosign/Semgrep) is free. Both this repo and
+Syft, Grype, Cosign, Semgrep) is free. Both this repo and
 `atlas-foundation` are private, so runs draw from GitHub's private-repo
 free-tier Actions minutes (2,000/month on the Free plan), not the
 unlimited public-repo tier — worth tracking as more workflows and
@@ -212,16 +250,30 @@ assumed.
 
 ## Monitoring
 
-Not applicable in the traditional sense — this repo produces CI gates,
-not running infrastructure. The closest equivalent is each consuming
-repo's Actions history, which is the audit trail of every scan run.
+A local Grafana dashboard (`dashboard/`) visualizes scan-finding
+trends over time across every tool this repo ships: Checkov, tfsec,
+Trivy, Semgrep, Grype, and Gitleaks. Backed by a committed CSV history
+(`dashboard/metrics/scan-history.csv`), not a continuously-running
+metrics pipeline — see ADR-0005 for why CSV over Prometheus. Run it:
+
+```bash
+cd dashboard
+docker compose up
+```
+
+Then open `http://localhost:3000`. Rows are added to
+`dashboard/metrics/scan-history.csv` automatically: each reusable
+workflow dispatches its result to `ingest-scan-results.yml` (this
+repo), which runs `scripts/ingest-scan-results.py` and commits the row
+— see ADR-0006. `scripts/ingest-scan-results.py` remains available for
+manual/local invocation against a raw scan output file too.
 
 ## Incident Runbook
 
-Not yet built. First candidate incident type once written: a reusable
-workflow reference (`@main`) breaking every consumer simultaneously if
-a change here isn't backward compatible — see the Postmortem below for
-a related, already-experienced failure mode.
+Full runbook: [`docs/incident-runbook.md`](docs/incident-runbook.md).
+Covers: `opa test` failures, a reusable-workflow break propagating to
+every consumer on `@main` simultaneously, and Semgrep/Checkov false-
+positive triage.
 
 ## Postmortem Example
 

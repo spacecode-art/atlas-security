@@ -28,11 +28,15 @@ security of GitHub as a platform.
   checkout and every `uses:` line in `atlas-foundation`'s `ci.yml`). A
   compromised or malicious commit to `main` is live for every consumer
   on their very next CI run, with no review step on the consumer side.
-- **Mitigation:** None technical today — this relies entirely on
-  GitHub's access control on this repo. Planned mitigation: tag a
-  versioned release (`@v1`) once the workflow surface stabilizes (see
-  README Future Roadmap), so consumers pin to a reviewed release
-  instead of tracking `main` directly.
+- **Mitigation:** Partial. This threat has two layers: (1) this repo's
+  own third-party Action dependencies (`actions/checkout`,
+  `checkov-action`, etc.) were themselves pinned by mutable tag — fixed
+  in ADR-0007, every one now pinned to a commit SHA. (2) Consumers
+  still reference *this repo's* reusable workflows by `@main`, not a
+  tag or SHA — still open. Planned mitigation: tag a versioned release
+  (`@v1`) once the workflow surface stabilizes (see README Future
+  Roadmap), so consumers pin to a reviewed release instead of tracking
+  `main` directly.
 
 ### Tampering
 - **Threat:** `tagging.rego`'s `deny` rule is weakened or removed in a
@@ -85,15 +89,27 @@ security of GitHub as a platform.
   convention, not something `reusable-iac-scan.yml` can verify. A
   careless or malicious consumer could pass an empty-justification
   skip list and this repo would have no way to know or block it.
-- **Mitigation:** None today. A future version could require the
-  skip-list input to reference a URL/ADR ID pattern and fail loudly if
-  absent — not built yet.
+- **Mitigation:** Partial. `scripts/lint-skip-citations.py` (ADR-0008)
+  now exists and correctly detects an uncited skip when run against a
+  workflow file — verified against `atlas-foundation`'s real `ci.yml`
+  and against a deliberately-broken copy. It is not yet wired into any
+  consumer's CI as an actual gating step, so today it's a tool someone
+  has to remember to run, which is a smaller version of the same
+  underlying gap (enforcement depends on a human choosing to invoke
+  it), not yet a closed one.
 
 ## Known Gaps (honest, not hidden)
-- No SHA or tag pinning for consumers — `@main` only, today.
+- Consumers still pin this repo's reusable workflows by `@main`, not a
+  tag or SHA (ADR-0007 fixed this repo's *own* third-party Action
+  pins; consumer-facing pinning of this repo is the remaining half).
 - Branch protection rules on `main` are assumed, not documented or
   verified in this repo.
-- The skip-list ADR-citation convention is unenforced by tooling.
+- `scripts/lint-skip-citations.py` (ADR-0008) exists and works but
+  isn't wired into any consumer's CI as a gate yet — enforcement is
+  still opt-in until that happens.
+- No Dependabot (or equivalent) keeping the ADR-0007 SHA pins current
+  — pinning solves the mutable-tag threat but introduces a new one
+  (silently stale dependencies) if nothing ever bumps them.
 - No signing or provenance verification of this repo's own workflow
   files — notable given this repo's own Future Roadmap includes adding
   Cosign signing *for other repos' artifacts*, but doesn't yet apply

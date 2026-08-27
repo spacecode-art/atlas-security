@@ -1,0 +1,50 @@
+name: Reusable - IaC Scan (Trivy, third opinion)
+
+on:
+  workflow_call:
+    inputs:
+      directory:
+        description: "Path to the Terraform tree to scan"
+        type: string
+        default: "terraform/"
+      trivy-version:
+        description: "Pinned Trivy binary version — single source of truth, do not override per-consumer"
+        type: string
+        default: "0.69.3"
+      severity:
+        description: "Comma-separated severities to report (Trivy's own filter, separate from Checkov/tfsec's skip-lists)"
+        type: string
+        default: "HIGH,CRITICAL"
+
+jobs:
+  trivy:
+    name: Trivy config scan (third opinion, non-blocking)
+    runs-on: ubuntu-latest
+    continue-on-error: true   # informational only — Checkov remains the hard gate, per atlas-foundation ADR-0010
+    steps:
+      - name: Checkout consuming repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Run Trivy config scan
+        # Pinned to commit SHA, not a version tag — CVE-2026-33634
+        # (March 2026): an attacker force-pushed 76 of 77 trivy-action
+        # version tags, including ones GitHub marked "immutable," to
+        # malicious commits. v0.35.0 (this SHA) was the one tag that
+        # survived untouched. Tags are not a safe pin target for this
+        # action going forward; see ADR-0004 update.
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
+        with:
+          scan-type: config
+          scan-ref: ${{ inputs.directory }}
+          severity: ${{ inputs.severity }}
+          format: sarif
+          output: trivy-results.sarif
+          exit-code: 0   # never block — see ADR-0004; upload artifact regardless of findings
+
+      - name: Upload SARIF artifact
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: trivy-results
+          path: trivy-results.sarif
+          retention-days: 30

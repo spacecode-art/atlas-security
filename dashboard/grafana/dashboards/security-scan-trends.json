@@ -1,0 +1,45 @@
+{
+  "title": "Security Scan Trends",
+  "uid": "security-scan-trends",
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "panels": [
+    {
+      "id": 1,
+      "title": "Failed findings over time, by tool",
+      "type": "timeseries",
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 0 },
+      "datasource": { "type": "marcusolsson-csv-datasource", "uid": "Scan History (CSV)" },
+      "targets": [
+        {
+          "refId": "A",
+          "header": true,
+          "schema": [
+            { "name": "date", "type": "time" },
+            { "name": "failed" },
+            { "name": "tool", "type": "string" }
+          ]
+        }
+      ],
+      "transformations": [
+        {
+          "id": "convertFieldType",
+          "options": {
+            "conversions": [
+              { "targetField": "failed", "destinationType": "number" }
+            ],
+            "fields": {}
+          }
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Latest run per tool",
+      "type": "table",
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 10 },
+      "datasource": { "type": "marcusolsson-csv-datasource", "uid": "Scan History (CSV)" },
+      "targets": [{ "refId": "A" }]
+    }
+  ]
+}
