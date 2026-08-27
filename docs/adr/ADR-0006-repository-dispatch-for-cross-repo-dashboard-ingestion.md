@@ -41,10 +41,11 @@ that ever commits to `dashboard/metrics/scan-history.csv` — via
 `permissions: contents: write` on its own `GITHUB_TOKEN`, not a PAT.
 
 **Payload contents differ by tool.** Checkov, tfsec, Semgrep, and Grype
-findings are configuration/dependency data, not secret material, so
-their raw JSON/SARIF is embedded directly in the dispatch payload and
-parsed by the existing `parse_*` functions in `ingest-scan-results.py`
-— no duplicate parsing logic. Gitleaks is the exception: its report
+findings are configuration/dependency data, not secret material. The
+dispatch payload contains only the fields consumed by the existing
+`parse_*` functions in `ingest-scan-results.py` (the Checkov summary,
+severity fields, and SARIF levels), keeping the request well below
+GitHub's payload limit. Gitleaks is the exception: its report
 contains the actual matched secret text. The gitleaks reusable workflow
 never lets that leave the runner — it re-runs gitleaks locally, keeps
 only the finding count, and sends a redacted stub (`[{}, {}, ...]`,
@@ -59,12 +60,12 @@ cross-repo.
   not automated by this ADR. `atlas-foundation`'s `ci.yml` documents
   where to wire it; Tawira's CI needs the same secret added separately.
 - `repository_dispatch` client payloads are capped (GitHub enforces a
-  practical limit in the tens of KB). At current scale every tool's
-  JSON output is well under that. If a scanned repo grows enough that
-  Checkov or Grype output approaches the limit, the fix is to switch
-  that tool's payload to an artifact pointer (run ID + artifact name)
-  and have `ingest-scan-results.yml` pull it via the API instead of
-  embedding it — not a redesign, an extension of this same workflow.
+  practical limit in the tens of KB). The reusable workflows reduce
+  reports to parser-required fields before dispatch, avoiding failures
+  as scan output grows. If the reduced payload itself approaches the
+  limit, switch that tool to an artifact pointer (run ID + artifact
+  name) and have `ingest-scan-results.yml` pull it via the API instead
+  of embedding it — an extension of this same workflow.
 - A dispatch landing while another commit is mid-flight can lose a
   race and fail its push. Accepted at today's volume (a few scans a
   day, per ADR-0005) rather than adding retry/rebase logic; revisit if

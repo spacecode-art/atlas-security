@@ -129,8 +129,10 @@ jobs:
             exit 0
           fi
           REPO_NAME="${GITHUB_REPOSITORY##*/}"
+          jq '{matches: [.matches[]? | {vulnerability: {severity: .vulnerability.severity}}]}' \
+            grype-results.json > grype-dispatch-findings.json
           jq -n --arg tool grype --arg repo "$REPO_NAME" \
-            --slurpfile findings grype-results.json \
+            --slurpfile findings grype-dispatch-findings.json \
             '{event_type:"scan-result", client_payload:{tool:$tool, repo:$repo, findings:$findings[0]}}' \
             > dispatch.json
           curl -sS -f -X POST \

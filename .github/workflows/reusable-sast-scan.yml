@@ -69,8 +69,10 @@ jobs:
             exit 0
           fi
           REPO_NAME="${GITHUB_REPOSITORY##*/}"
+          jq '{runs: [{results: [.runs[0].results[]? | {level}]}]}' \
+            semgrep-results.sarif > semgrep-dispatch-findings.json
           jq -n --arg tool semgrep --arg repo "$REPO_NAME" \
-            --slurpfile findings semgrep-results.sarif \
+            --slurpfile findings semgrep-dispatch-findings.json \
             '{event_type:"scan-result", client_payload:{tool:$tool, repo:$repo, findings:$findings[0]}}' \
             > dispatch.json
           curl -sS -f -X POST \

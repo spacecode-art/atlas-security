@@ -63,8 +63,10 @@ jobs:
             exit 0
           fi
           REPO_NAME="${GITHUB_REPOSITORY##*/}"
+          jq 'if type == "array" then (map(select(has("summary")) | .summary) | first // {}) else (.summary // .) end | {summary: .}' \
+            checkov-results.json > checkov-dispatch-findings.json
           jq -n --arg tool checkov --arg repo "$REPO_NAME" \
-            --slurpfile findings checkov-results.json \
+            --slurpfile findings checkov-dispatch-findings.json \
             '{event_type:"scan-result", client_payload:{tool:$tool, repo:$repo, findings:$findings[0]}}' \
             > dispatch.json
           curl -sS -f -X POST \
@@ -106,8 +108,10 @@ jobs:
             exit 0
           fi
           REPO_NAME="${GITHUB_REPOSITORY##*/}"
+          jq '{results: [.results[]? | {severity}]}' tfsec-results.json \
+            > tfsec-dispatch-findings.json
           jq -n --arg tool tfsec --arg repo "$REPO_NAME" \
-            --slurpfile findings tfsec-results.json \
+            --slurpfile findings tfsec-dispatch-findings.json \
             '{event_type:"scan-result", client_payload:{tool:$tool, repo:$repo, findings:$findings[0]}}' \
             > dispatch.json
           curl -sS -f -X POST \
