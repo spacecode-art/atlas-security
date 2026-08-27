@@ -191,17 +191,7 @@ is the real ongoing validation of the Rego policies' correctness.
   Terraform, so it's a correct non-consumer rather than a gap.
 
 **Not yet built:**
-- `docs/evidence/` — real SBOM/Grype/Cosign output captured from
-  Tawira's live CI runs (needs pulling from that repo's own Actions
-  history, not fabricated here)
-- The `ingest-token` secret is configured for `atlas-foundation` but
-  not yet for Tawira, so today only one of the two real consumers
-  reports to the dashboard (ADR-0006)
-- `scripts/lint-skip-citations.py` (ADR-0008) exists but isn't yet
-  wired into any consumer's CI as an actual gating step
-- SHA/tag pinning for *this repo's own* Action dependencies is done
-  (ADR-0007); pinning for *consumers referencing this repo's reusable
-  workflows* is still `@main` — see Future Roadmap
+- Threat model, incident runbook for this repo itself
 
 ## Design Decisions (ADRs)
 
@@ -317,24 +307,17 @@ even when the actual check never ran.
 
 ## Future Roadmap
 
-- Wire `ingest-token` secret into Tawira's CI (already wired for
-  atlas-foundation) so both real consumers report to the dashboard,
-  not just one — see ADR-0006
 - Capture real evidence from Tawira's now-live CI runs: SBOM output,
   Grype scan results, Cosign signature/verification — mirror
   `atlas-foundation`'s `docs/evidence/` pattern, currently missing here
 - Triage and ADR-document any real CVEs Grype finds in Tawira's image
-- SHA/tag pinning is done for this repo's own third-party Actions
-  (ADR-0007) and for consumers' references to *this repo's* reusable
-  workflows is the next step once `v1.0.0` is tagged and pushed —
-  switch `@main` to `@v1` in `atlas-foundation`'s `ci.yml` (and
-  Tawira's) at that point
-- Wire `scripts/lint-skip-citations.py` (ADR-0008) into
-  `atlas-foundation`'s (and eventually Tawira's) CI as an actual
-  gating step, not just an available script
-- Configure Dependabot (or equivalent) to open PRs bumping the pinned
-  SHAs from ADR-0007 on a schedule, so pinning doesn't calcify into
-  "never updated"
+- SHA/tag pinning for consumers (currently `@main` only — see
+  Spoofing/Repudiation in the threat model)
+- Tag a versioned release (`@v1`) once the workflow surface stabilizes,
+  so consumers can pin to a release instead of tracking `@main` directly
+- Enforce the skip-list ADR-citation convention in tooling rather than
+  relying on PR review alone (see Elevation of Privilege in the threat
+  model)
 
 ## Documentation
 
