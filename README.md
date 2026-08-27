@@ -192,16 +192,14 @@ is the real ongoing validation of the Rego policies' correctness.
 
 **Not yet built:**
 - `docs/evidence/` — real SBOM/Grype/Cosign output captured from
-  Tawira's live CI runs (needs pulling from that repo's own Actions
-  history, not fabricated here)
-- The `ingest-token` secret is configured for `atlas-foundation` but
-  not yet for Tawira, so today only one of the two real consumers
-  reports to the dashboard (ADR-0006)
-- `scripts/lint-skip-citations.py` (ADR-0008) exists but isn't yet
-  wired into any consumer's CI as an actual gating step
-- SHA/tag pinning for *this repo's own* Action dependencies is done
-  (ADR-0007); pinning for *consumers referencing this repo's reusable
-  workflows* is still `@main` — see Future Roadmap
+  Tawira's live CI runs, and a CSV export showing rows ingested from
+  *both* real consumers (see Future Roadmap)
+- Confirm `ATLAS_SECURITY_INGEST_TOKEN` is actually set as a repo
+  secret in Tawira (the workflow call passes it unconditionally, but
+  `reusable-secrets-scan.yml` no-ops silently per ADR-0006 if the
+  secret was never configured on the consumer side — wiring the YAML
+  and configuring the secret are two different steps, and only one is
+  visible from this repo)
 
 ## Design Decisions (ADRs)
 
@@ -315,23 +313,30 @@ misconfiguration are more dangerous than tools that error loudly**,
 because a green (or merely non-crashing) CI run reads as "working"
 even when the actual check never ran.
 
+## Demo Video
+
+[screen recording link here — asciinema or short screen capture]
+
+Shows `docker compose up` in `dashboard/`, the Grafana dashboard
+loading with real ingested rows from both `atlas-foundation` and
+Tawira's CI runs, and `opa test policies/opa/ -v` passing locally.
+Matches the pattern in `atlas-foundation`'s README.
+
 ## Future Roadmap
 
-- Wire `ingest-token` secret into Tawira's CI (already wired for
-  atlas-foundation) so both real consumers report to the dashboard,
-  not just one — see ADR-0006
-- Capture real evidence from Tawira's now-live CI runs: SBOM output,
-  Grype scan results, Cosign signature/verification — mirror
-  `atlas-foundation`'s `docs/evidence/` pattern, currently missing here
+- Capture real evidence from Tawira's live CI runs into
+  `docs/evidence/`: SBOM output, Grype scan results, Cosign
+  signature/verification — mirror `atlas-foundation`'s existing
+  pattern
+- Confirm `ATLAS_SECURITY_INGEST_TOKEN` is actually configured as a
+  Tawira repo secret, then verify a real dispatched row lands in
+  `dashboard/metrics/scan-history.csv` from Tawira, not just
+  `atlas-foundation`
 - Triage and ADR-document any real CVEs Grype finds in Tawira's image
-- SHA/tag pinning is done for this repo's own third-party Actions
-  (ADR-0007) and for consumers' references to *this repo's* reusable
-  workflows is the next step once `v1.0.0` is tagged and pushed —
-  switch `@main` to `@v1` in `atlas-foundation`'s `ci.yml` (and
-  Tawira's) at that point
-- Wire `scripts/lint-skip-citations.py` (ADR-0008) into
-  `atlas-foundation`'s (and eventually Tawira's) CI as an actual
-  gating step, not just an available script
+- Wire `scripts/lint-skip-citations.py` (ADR-0008) into Tawira's CI
+  too — it's already gating `atlas-foundation`, but Tawira has no
+  Terraform skip-list to lint, so confirm whether this is a real gap
+  or a correct non-consumer, same reasoning as the OPA workflow below
 - Configure Dependabot (or equivalent) to open PRs bumping the pinned
   SHAs from ADR-0007 on a schedule, so pinning doesn't calcify into
   "never updated"

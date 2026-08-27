@@ -3,16 +3,26 @@
 All notable changes to this project are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
-## [Unreleased]
+## [1.0.2] - <date you tagged it>
+
+### Added
+- `ingest-token` wired into `reusable-sbom-scan-sign.yml`'s Tawira
+  call, completing dashboard ingestion for the second real consumer
+
+## [1.0.1] - <date you tagged it>
 
 ### Added
 - `scripts/lint-skip-citations.py` — enforces the skip-list
   ADR-citation convention in tooling instead of relying on PR review
   alone (ADR-0008)
+- `lint-skip-citations.py` wired into `atlas-foundation`'s CI as an
+  actual gating step (not just an available script)
 
 ### Changed
 - Every third-party Action across every workflow pinned to a commit
   SHA instead of a mutable tag (ADR-0007)
+- Consumers (`atlas-foundation`, `Tawira`) moved off `@main` onto
+  pinned release tags for every reusable workflow reference
 
 ## [1.0.0] - 2026-08-27
 
