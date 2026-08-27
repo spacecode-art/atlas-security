@@ -6,5 +6,5 @@ datasources:
     access: proxy
     url: http://metrics-server/scan-history.csv
     jsonData:
-      storage: url
+      storage: http
     isDefault: true

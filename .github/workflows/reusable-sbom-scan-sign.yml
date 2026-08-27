@@ -49,6 +49,9 @@ on:
         required: true
       registry-password:
         required: true
+      ingest-token:
+        description: "PAT with permission to dispatch to spacecode-art/atlas-security. Optional — dashboard ingestion (ADR-0006) is skipped if unset."
+        required: false
 
 jobs:
   build-scan-sign:
@@ -61,10 +64,10 @@ jobs:
 
     steps:
       - name: Checkout consuming repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
       - name: Log in to registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
           registry: ghcr.io
           username: ${{ secrets.registry-username }}
@@ -89,7 +92,7 @@ jobs:
             -o spdx-json="sbom-${{ inputs.image-tag }}.spdx.json"
 
       - name: Upload SBOM artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: sbom-${{ inputs.image-tag }}
           path: sbom-${{ inputs.image-tag }}.spdx.json
@@ -105,6 +108,36 @@ jobs:
           grype "sbom:sbom-${{ inputs.image-tag }}.spdx.json" \
             --fail-on "${{ inputs.fail-on-severity }}" \
             -o table
+
+      - name: Re-run Grype for JSON (dashboard ingestion only)
+        # Separate from the fail-on gate above — this never affects
+        # whether the image gets pushed, only whether a data point
+        # reaches the dashboard. See ADR-0006.
+        if: always()
+        continue-on-error: true
+        run: |
+          grype "sbom:sbom-${{ inputs.image-tag }}.spdx.json" -o json > grype-results.json || true
+
+      - name: Report to dashboard
+        if: always() && hashFiles('grype-results.json') != ''
+        continue-on-error: true
+        env:
+          INGEST_TOKEN: ${{ secrets.ingest-token }}
+        run: |
+          if [ -z "$INGEST_TOKEN" ]; then
+            echo "No ingest-token secret — skipping dashboard dispatch (ADR-0006)."
+            exit 0
+          fi
+          REPO_NAME="${GITHUB_REPOSITORY##*/}"
+          jq -n --arg tool grype --arg repo "$REPO_NAME" \
+            --slurpfile findings grype-results.json \
+            '{event_type:"scan-result", client_payload:{tool:$tool, repo:$repo, findings:$findings[0]}}' \
+            > dispatch.json
+          curl -sS -f -X POST \
+            -H "Authorization: token $INGEST_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/spacecode-art/atlas-security/dispatches \
+            -d @dispatch.json
 
       - name: Push image
         # Only pushed after Grype passes — an image with a hard-fail
@@ -122,7 +155,7 @@ jobs:
           echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
 
       - name: Install Cosign
-        uses: sigstore/cosign-installer@v3
+        uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac # v3
         with:
           cosign-release: "v${{ inputs.cosign-version }}"
 

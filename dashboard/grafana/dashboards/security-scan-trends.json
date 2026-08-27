@@ -13,11 +13,23 @@
       "targets": [
         {
           "refId": "A",
-          "fields": [
-            { "name": "date" },
+          "header": true,
+          "schema": [
+            { "name": "date", "type": "time" },
             { "name": "failed" },
-            { "name": "tool" }
+            { "name": "tool", "type": "string" }
           ]
+        }
+      ],
+      "transformations": [
+        {
+          "id": "convertFieldType",
+          "options": {
+            "conversions": [
+              { "targetField": "failed", "destinationType": "number" }
+            ],
+            "fields": {}
+          }
         }
       ]
     },
