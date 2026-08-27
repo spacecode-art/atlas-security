@@ -191,7 +191,15 @@ is the real ongoing validation of the Rego policies' correctness.
   Terraform, so it's a correct non-consumer rather than a gap.
 
 **Not yet built:**
-- Threat model, incident runbook for this repo itself
+- `docs/evidence/` — real SBOM/Grype/Cosign output captured from
+  Tawira's live CI runs, and a CSV export showing rows ingested from
+  *both* real consumers (see Future Roadmap)
+- Confirm `ATLAS_SECURITY_INGEST_TOKEN` is actually set as a repo
+  secret in Tawira (the workflow call passes it unconditionally, but
+  `reusable-secrets-scan.yml` no-ops silently per ADR-0006 if the
+  secret was never configured on the consumer side — wiring the YAML
+  and configuring the secret are two different steps, and only one is
+  visible from this repo)
 
 ## Design Decisions (ADRs)
 
@@ -305,19 +313,33 @@ misconfiguration are more dangerous than tools that error loudly**,
 because a green (or merely non-crashing) CI run reads as "working"
 even when the actual check never ran.
 
+## Demo Video
+
+[screen recording link here — asciinema or short screen capture]
+
+Shows `docker compose up` in `dashboard/`, the Grafana dashboard
+loading with real ingested rows from both `atlas-foundation` and
+Tawira's CI runs, and `opa test policies/opa/ -v` passing locally.
+Matches the pattern in `atlas-foundation`'s README.
+
 ## Future Roadmap
 
-- Capture real evidence from Tawira's now-live CI runs: SBOM output,
-  Grype scan results, Cosign signature/verification — mirror
-  `atlas-foundation`'s `docs/evidence/` pattern, currently missing here
+- Capture real evidence from Tawira's live CI runs into
+  `docs/evidence/`: SBOM output, Grype scan results, Cosign
+  signature/verification — mirror `atlas-foundation`'s existing
+  pattern
+- Confirm `ATLAS_SECURITY_INGEST_TOKEN` is actually configured as a
+  Tawira repo secret, then verify a real dispatched row lands in
+  `dashboard/metrics/scan-history.csv` from Tawira, not just
+  `atlas-foundation`
 - Triage and ADR-document any real CVEs Grype finds in Tawira's image
-- SHA/tag pinning for consumers (currently `@main` only — see
-  Spoofing/Repudiation in the threat model)
-- Tag a versioned release (`@v1`) once the workflow surface stabilizes,
-  so consumers can pin to a release instead of tracking `@main` directly
-- Enforce the skip-list ADR-citation convention in tooling rather than
-  relying on PR review alone (see Elevation of Privilege in the threat
-  model)
+- Wire `scripts/lint-skip-citations.py` (ADR-0008) into Tawira's CI
+  too — it's already gating `atlas-foundation`, but Tawira has no
+  Terraform skip-list to lint, so confirm whether this is a real gap
+  or a correct non-consumer, same reasoning as the OPA workflow below
+- Configure Dependabot (or equivalent) to open PRs bumping the pinned
+  SHAs from ADR-0007 on a schedule, so pinning doesn't calcify into
+  "never updated"
 
 ## Documentation
 
