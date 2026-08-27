@@ -17,8 +17,10 @@ jobs:
 
       - name: Extract payload
         id: payload
+        env:
+          PAYLOAD_JSON: ${{ toJson(github.event.client_payload) }}
         run: |
-          echo '${{ toJson(github.event.client_payload) }}' > payload.json
+          printf '%s' "$PAYLOAD_JSON" > payload.json
           echo "tool=$(jq -r '.tool' payload.json)" >> "$GITHUB_OUTPUT"
           echo "repo=$(jq -r '.repo' payload.json)" >> "$GITHUB_OUTPUT"
           jq '.findings' payload.json > findings.json
