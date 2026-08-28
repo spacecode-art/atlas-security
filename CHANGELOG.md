@@ -3,6 +3,26 @@
 All notable changes to this project are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.0.3] - <date you tagged it>
+
+### Fixed
+- `ingest-scan-results.yml` failed on every real dispatch since
+  ADR-0006 shipped: branch protection on `main` rejected the bot's
+  direct `git push`, silently dropping real Grype findings (including
+  CVE-2025-60876) before they reached the dashboard
+- Workflow now opens a short-lived branch and self-merges its own PR
+  instead of pushing to `main` directly (ADR-0009)
+- `gh pr create` required a dedicated `DASHBOARD_BOT_TOKEN`
+  (fine-grained PAT, Contents + Pull requests read/write) since the
+  default `GITHUB_TOKEN` is blocked from creating/approving PRs by a
+  repo-wide setting — widening that setting repo-wide was rejected as
+  too broad a blast radius for one job (ADR-0009 update)
+
+### Added
+- `docs/evidence/tawira/` — real SBOM, Grype, and Cosign verify
+  output captured from Tawira's live CI, proving the SBOM/scan/sign
+  pipeline and the ADR-0009 fix end-to-end
+
 ## [1.0.2] - <date you tagged it>
 
 ### Added

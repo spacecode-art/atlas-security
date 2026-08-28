@@ -190,16 +190,24 @@ is the real ongoing validation of the Rego policies' correctness.
   evaluates Terraform plan JSON specifically, and Tawira has no
   Terraform, so it's a correct non-consumer rather than a gap.
 
+**Confirmed working (2026-08-28):**
+- `docs/evidence/tawira/` — real SBOM, Grype (JSON + table), and
+  Cosign verify output captured from Tawira CI run `33154386457`
+  (commit `20601f2921ce191ad2e53c5188d2aae7652fbf48`)
+- `ATLAS_SECURITY_INGEST_TOKEN` confirmed configured in Tawira:
+  `dashboard/metrics/scan-history.csv` has real dispatched rows from
+  Tawira (`gitleaks`, `grype`), not just `atlas-foundation`
+- ADR-0009's self-merge fix confirmed working end-to-end against
+  branch protection, via `DASHBOARD_BOT_TOKEN`
+
 **Not yet built:**
-- `docs/evidence/` — real SBOM/Grype/Cosign output captured from
-  Tawira's live CI runs, and a CSV export showing rows ingested from
-  *both* real consumers (see Future Roadmap)
-- Confirm `ATLAS_SECURITY_INGEST_TOKEN` is actually set as a repo
-  secret in Tawira (the workflow call passes it unconditionally, but
-  `reusable-secrets-scan.yml` no-ops silently per ADR-0006 if the
-  secret was never configured on the consumer side — wiring the YAML
-  and configuring the secret are two different steps, and only one is
-  visible from this repo)
+- Demo video/screen recording — none exists in this repo yet
+- Triage and ADR-document `CVE-2025-60876` (Tawira base image, see
+  `docs/evidence/tawira/README.md`)
+- Dependabot (or equivalent) to bump ADR-0007's pinned SHAs on a
+  schedule
+- IAM Access Analyzer / least-privilege report — descoped to
+  `atlas-foundation`, see ADR-0010
 
 ## Design Decisions (ADRs)
 
@@ -213,6 +221,8 @@ is the real ongoing validation of the Rego policies' correctness.
 | 0006 | Wire dashboard ingestion into CI via `repository_dispatch` |
 | 0007 | Pin every third-party Action to a commit SHA, not a tag |
 | 0008 | Enforce skip-list ADR citations with a script, not review alone |
+| 0009 | Self-merged PR (not direct push) for dashboard ingestion, via scoped PAT |
+| 0010 | IAM Access Analyzer / least-privilege reporting descoped to `atlas-foundation` |
 
 ## Threat Model
 
@@ -315,12 +325,14 @@ even when the actual check never ran.
 
 ## Demo Video
 
-[screen recording link here — asciinema or short screen capture]
+[asciinema recording — 2026-08-28](https://asciinema.org/a/JzsLR4EylHwFOxA9)
 
-Shows `docker compose up` in `dashboard/`, the Grafana dashboard
-loading with real ingested rows from both `atlas-foundation` and
-Tawira's CI runs, and `opa test policies/opa/ -v` passing locally.
-Matches the pattern in `atlas-foundation`'s README.
+Shows `opa test policies/opa/ -v` passing (6/6), `docker compose up`
+bringing up the dashboard stack, the Grafana "Security Scan Trends"
+dashboard loading with real ingested rows from both `atlas-foundation`
+(checkov, 2026-08-26) and Tawira (gitleaks + grype, 2026-08-28), and
+`docker compose down` tearing it back down. Matches the pattern in
+`atlas-foundation`'s README.
 
 ## Future Roadmap
 
