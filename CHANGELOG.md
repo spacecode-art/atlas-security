@@ -3,7 +3,7 @@
 All notable changes to this project are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
-## [1.0.3] - <date you tagged it>
+## [1.0.3] - 2026-08-28
 
 ### Fixed
 - `ingest-scan-results.yml` failed on every real dispatch since
@@ -23,13 +23,13 @@ follows [Keep a Changelog](https://keepachangelog.com/).
   output captured from Tawira's live CI, proving the SBOM/scan/sign
   pipeline and the ADR-0009 fix end-to-end
 
-## [1.0.2] - <date you tagged it>
+## [1.0.2] - 2026-08-27
 
 ### Added
 - `ingest-token` wired into `reusable-sbom-scan-sign.yml`'s Tawira
   call, completing dashboard ingestion for the second real consumer
 
-## [1.0.1] - <date you tagged it>
+## [1.0.1] - 2026-08-27
 
 ### Added
 - `scripts/lint-skip-citations.py` — enforces the skip-list
