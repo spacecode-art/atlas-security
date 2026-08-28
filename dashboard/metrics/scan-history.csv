@@ -1,2 +1,3 @@
 date,tool,repo,passed,failed,high,medium,low
 2026-08-26,checkov,atlas-foundation,45,0,0,0,0
+2026-08-28,gitleaks,Tawira,0,0,0,0,0
