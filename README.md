@@ -201,7 +201,6 @@ is the real ongoing validation of the Rego policies' correctness.
   branch protection, via `DASHBOARD_BOT_TOKEN`
 
 **Not yet built:**
-- Demo video/screen recording — none exists in this repo yet
 - Triage and ADR-document `CVE-2025-60876` (Tawira base image, see
   `docs/evidence/tawira/README.md`)
 - Dependabot (or equivalent) to bump ADR-0007's pinned SHAs on a
@@ -336,14 +335,6 @@ dashboard loading with real ingested rows from both `atlas-foundation`
 
 ## Future Roadmap
 
-- Capture real evidence from Tawira's live CI runs into
-  `docs/evidence/`: SBOM output, Grype scan results, Cosign
-  signature/verification — mirror `atlas-foundation`'s existing
-  pattern
-- Confirm `ATLAS_SECURITY_INGEST_TOKEN` is actually configured as a
-  Tawira repo secret, then verify a real dispatched row lands in
-  `dashboard/metrics/scan-history.csv` from Tawira, not just
-  `atlas-foundation`
 - Triage and ADR-document any real CVEs Grype finds in Tawira's image
 - Wire `scripts/lint-skip-citations.py` (ADR-0008) into Tawira's CI
   too — it's already gating `atlas-foundation`, but Tawira has no
