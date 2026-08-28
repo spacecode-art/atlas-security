@@ -52,3 +52,25 @@ silent push rejection.
 - The 8 real dispatches that failed under the old design are gone —
   their data was never committed. Nothing to backfill from; the CSV's
   first real automated row starts from whenever this fix merges.
+
+## Update (2026-08-28)
+
+The first real dispatch after this ADR's fix failed differently:
+`gh pr create` returned "GitHub Actions is not permitted to create or
+approve pull requests." This is a separate, repo-level GitHub setting
+(Settings → Actions → General), off by default specifically to stop a
+compromised or malicious workflow from opening/merging arbitrary PRs
+— it can't be granted via the workflow's own `permissions:` block.
+
+Rejected: flipping that repo-wide setting on. It would fix this
+workflow, but it also hands every *other* current and future workflow
+in this repo the same ability, permanently — a much bigger blast
+radius than this one job needs.
+
+Instead: `DASHBOARD_BOT_TOKEN`, a fine-grained PAT scoped only to this
+repo with Contents + Pull requests read/write, stored as a repo secret
+and used solely for the `gh pr create`/`gh pr merge` calls in this
+workflow. The `git push` of the branch itself still uses the default
+`GITHUB_TOKEN` via `actions/checkout`'s persisted credentials — that
+part already worked, no need to widen it. The PR-creation capability
+now lives in exactly one secret, used by exactly one job.  

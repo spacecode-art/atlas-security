@@ -41,8 +41,15 @@ jobs:
         # main is a reviewable PR" for every future commit, not just
         # this one), this workflow follows the same rule everyone
         # else does: it opens its own PR and merges it. See ADR-0009.
+        #
+        # GH_TOKEN here is a scoped PAT, not github.token: GitHub
+        # blocks the default Actions token from creating/approving
+        # PRs by design (anti-escalation guard). Enabling that
+        # repo-wide would fix it too, but for every workflow in this
+        # repo forever — a dedicated PAT keeps the capability scoped
+        # to exactly this one job. See ADR-0009 update.
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.DASHBOARD_BOT_TOKEN }}
         run: |
           git config user.name "atlas-security-bot"
           git config user.email "actions@users.noreply.github.com"
