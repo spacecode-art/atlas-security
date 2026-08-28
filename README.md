@@ -325,7 +325,7 @@ even when the actual check never ran.
 
 ## Demo Video
 
-[asciinema recording — 2026-08-28](https://asciinema.org/a/JzsLR4EylHwFOxA9)
+[![Atlas Security Demo](https://asciinema.org/a/JzsLR4EylHwFOxA9.svg)](https://asciinema.org/a/JzsLR4EylHwFOxA9)
 
 Shows `opa test policies/opa/ -v` passing (6/6), `docker compose up`
 bringing up the dashboard stack, the Grafana "Security Scan Trends"
