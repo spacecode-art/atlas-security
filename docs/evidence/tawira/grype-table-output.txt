@@ -1,0 +1,4 @@
+NAME           INSTALLED   FIXED-IN  TYPE  VULNERABILITY   SEVERITY 
+busybox        1.37.0-r31            apk   CVE-2025-60876  Medium    
+busybox-binsh  1.37.0-r31            apk   CVE-2025-60876  Medium    
+ssl_client     1.37.0-r31            apk   CVE-2025-60876  Medium
