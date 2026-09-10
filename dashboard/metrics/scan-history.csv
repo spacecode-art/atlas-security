@@ -18,4 +18,4 @@ date,tool,repo,passed,failed,high,medium,low
 2026-09-07,grype,Tawira,0,3,0,3,0
 2026-09-07,gitleaks,Tawira,0,0,0,0,0
 2026-09-07,grype,Tawira,0,3,0,3,0
-2026-09-09,gitleaks,atlas-foundation,0,0,0,0,0
+2026-09-09,tfsec,atlas-foundation,0,16,6,8,2
