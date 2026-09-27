@@ -25,3 +25,4 @@ date,tool,repo,passed,failed,high,medium,low
 2026-09-27,gitleaks,Tawira,0,0,0,0,0
 2026-09-27,gitleaks,Tawira,0,0,0,0,0
 2026-09-27,grype,Tawira,0,3,0,3,0
+2026-09-27,gitleaks,Tawira,0,0,0,0,0
