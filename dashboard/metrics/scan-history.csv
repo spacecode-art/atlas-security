@@ -31,3 +31,4 @@ date,tool,repo,passed,failed,high,medium,low
 2026-10-09,gitleaks,atlas-foundation,0,0,0,0,0
 2026-10-17,gitleaks,Tawira,0,0,0,0,0
 2026-10-17,gitleaks,Tawira,0,0,0,0,0
+2026-10-17,grype,Tawira,0,3,0,3,0
