@@ -93,3 +93,4 @@ date,tool,repo,passed,failed,high,medium,low
 2026-10-21,semgrep,Tawira,0,1,0,0,0
 2026-10-21,grype,Tawira,0,3,0,3,0
 2026-10-21,semgrep,Tawira,0,1,0,0,0
+2026-10-21,grype,Tawira,0,3,0,3,0
